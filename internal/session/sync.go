@@ -9,6 +9,7 @@ import (
 type Discovered struct {
 	ID       string
 	Cwd      string
+	Name     string // Claude Code session name; empty → folder name
 	PID      int
 	TTY      string
 	Status   string // "busy" | "idle"
@@ -29,10 +30,17 @@ func (s *Store) Sync(list []Discovered) bool {
 			if d.Status == "busy" {
 				ss.State, ss.Activity = Working, "Working…"
 			}
+			if d.Name != "" {
+				ss.Name = d.Name
+			}
 			ss.Branch = s.branchOf(d.Cwd)
 			s.sessions[d.ID] = ss
 			changed = true
 			continue
+		}
+		if d.Name != "" && ss.Name != d.Name {
+			ss.Name = d.Name
+			changed = true
 		}
 		if ss.PID == 0 && d.PID != 0 {
 			ss.PID, ss.TTY = d.PID, d.TTY

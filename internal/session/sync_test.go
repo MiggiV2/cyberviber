@@ -111,3 +111,49 @@ func TestShouldFillMissingPidFromRegistry(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestShouldUseRegistryName(t *testing.T) {
+	// given
+	s := newStore()
+	d := disc("idle", 0)
+	d.Name = "field-proof-75"
+
+	// when
+	s.Sync([]Discovered{d})
+
+	// then
+	if got := only(t, s); got.Name != "field-proof-75" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestShouldRenameHookSessionsAndFollowRenames(t *testing.T) {
+	// given a session created by a hook, named after its folder
+	s := newStore()
+	s.Apply(ev(event.UserPromptSubmit, time.Minute))
+	d := disc("busy", 0)
+	d.Name = "cyberviber-fa"
+
+	// when
+	changed := s.Sync([]Discovered{d})
+
+	// then
+	if got := only(t, s); !changed || got.Name != "cyberviber-fa" {
+		t.Fatalf("changed=%v %+v", changed, got)
+	}
+
+	// and a later /rename is picked up
+	d.Name = "daemon work"
+	s.Sync([]Discovered{d})
+	if got := only(t, s); got.Name != "daemon work" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestShouldKeepFolderNameWhenRegistryHasNone(t *testing.T) {
+	s := newStore()
+	s.Sync([]Discovered{disc("idle", 0)})
+	if got := only(t, s); got.Name != "field-proof" {
+		t.Fatalf("%+v", got)
+	}
+}

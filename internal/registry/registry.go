@@ -14,6 +14,7 @@ type Entry struct {
 	PID       int
 	SessionID string
 	Cwd       string
+	Name      string // Claude Code's session name (derived or set via /rename)
 	Status    string // "busy" | "idle" (others possible)
 	StatusAt  time.Time
 }
@@ -22,6 +23,7 @@ type file struct {
 	PID             int    `json:"pid"`
 	SessionID       string `json:"sessionId"`
 	Cwd             string `json:"cwd"`
+	Name            string `json:"name"`
 	Kind            string `json:"kind"`
 	Status          string `json:"status"`
 	StatusUpdatedAt int64  `json:"statusUpdatedAt"`
@@ -45,7 +47,7 @@ func Read(dir string) []Entry {
 		if json.Unmarshal(b, &f) != nil || f.PID <= 0 || f.SessionID == "" || f.Kind != "interactive" {
 			continue
 		}
-		out = append(out, Entry{PID: f.PID, SessionID: f.SessionID, Cwd: f.Cwd, Status: f.Status,
+		out = append(out, Entry{PID: f.PID, SessionID: f.SessionID, Cwd: f.Cwd, Name: f.Name, Status: f.Status,
 			StatusAt: time.UnixMilli(f.StatusUpdatedAt)})
 	}
 	return out

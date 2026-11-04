@@ -78,7 +78,7 @@ Per session the daemon keeps:
 | Field | Source |
 |---|---|
 | `id` | hook `session_id` |
-| `name` | basename of `cwd` |
+| `name` | Claude Code's session name from the registry (`name`, e.g. `field-proof-75`, follows `/rename`); basename of `cwd` until the registry has the session |
 | `branch` | `git rev-parse --abbrev-ref HEAD` in `cwd` |
 | `state` | `input` · `ready` · `working` · `idle` |
 | `activity` | short text: last tool + target, or the question/permission text, or `Done · …` |

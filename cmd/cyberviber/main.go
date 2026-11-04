@@ -150,7 +150,7 @@ func discover() []session.Discovered {
 		if err != nil || !p.IsClaude() && p.Name != "node" {
 			continue
 		}
-		out = append(out, session.Discovered{ID: e.SessionID, Cwd: e.Cwd, PID: e.PID, TTY: p.TTY,
+		out = append(out, session.Discovered{ID: e.SessionID, Cwd: e.Cwd, Name: e.Name, PID: e.PID, TTY: p.TTY,
 			Status: e.Status, StatusAt: e.StatusAt})
 	}
 	return out
