@@ -48,12 +48,17 @@ Use Claude Code **hooks** (configured in `~/.claude/settings.json`) that post th
 
 | Hook event | Resulting state |
 |---|---|
-| `SessionStart` | `ready` (new session, waiting for first prompt) |
-| `UserPromptSubmit` | `working` |
-| `PreToolUse` / `PostToolUse` | `working` (+ update activity text, e.g. `Edit AuthResource.java`) |
-| `Notification` (permission / input needed) | `input` |
-| `Stop` | `ready` |
+| `SessionStart` | `ready`, "New session" |
+| `UserPromptSubmit` | `working`, "Thinking…"; resets the changed-files count of the turn |
+| `PreToolUse` | `working` + activity text (`Edit main.go`, `Bash: Run tests`, `Fetch zellij.dev`, …); Edit/Write/MultiEdit/NotebookEdit add the file to the turn's changed files |
+| `PreToolUse` with `AskUserQuestion` | `input`, activity = the question |
+| `PermissionRequest` | `input`, "Allow Bash: rm -rf build?" |
+| `Notification` | `input` only for `permission_prompt` / `elicitation_dialog` (keeps the more specific `PermissionRequest` text); `idle_prompt` is ignored |
+| `PostToolUse` / `PostToolUseFailure` | `working` (e.g. after a permission was granted) |
+| `Stop` | `ready`, "Done" or "Done · N files changed" |
 | `SessionEnd` | session removed |
+
+`since` only changes when the state changes (a working turn shows the time since the prompt). The `ready → idle` transition keeps `since`, so idle shows how long the session has been untouched. Sessions are persisted to `~/.cache/cyberviber/sessions.json` and restored on daemon restart (dead PIDs are dropped).
 
 The daemon also:
 - marks a session `idle` after **10 min** (configurable) without events in state `ready`;
@@ -93,7 +98,7 @@ The *anchor* is the process that runs directly in the terminal tab the user sees
 
 Finding the zellij client for a session, in order:
 1. `zellij` processes with a controlling TTY (clients; the server has none) whose command line names the session (`zellij attach S`, `zellij a S`, `zellij -s S`, `zellij --session S`).
-2. The client's IPC socket: the client holds a connection to the session socket under `$TMPDIR/zellij-<uid>/…/<S>` (via `lsof -U`). **To verify.**
+2. The client's IPC socket: `lsof -a -p <client> -U` shows the peer address of its connection (`->0x5385…`); `lsof -a -p <server> -U` lists the same address with the session socket path `$TMPDIR/zellij-<uid>/contract_version_1/<S>`. **Verified** on zellij 0.45.1 with a client started as plain `zellij a`.
 3. If there is exactly one zellij client, use it.
 4. No client found → the session is **detached**: open a new Ghostty window running `zellij attach S` (configurable; Tabby: just activate and report it).
 
@@ -271,7 +276,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 ## 6. Milestones
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
-2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status`; verify states against real sessions.
+2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
 3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij; test all four combinations.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
@@ -285,7 +290,9 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 - Tabby plugin API: shell PID per tab, selecting panes in split tabs, raising the window.
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
-- Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched?
+- Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched? (currently: decay after `idle_after`)
+- Interrupting a turn with Esc: does any hook fire? If not, the session stays `working` until the next prompt; a transcript-mtime heuristic could fix that.
+- `install` rewrites `settings.json` via encoding/json, which sorts keys. A backup is written once (`settings.json.cyberviber-backup`); key order could be preserved later if it matters.
 
 ## 8. References
 
