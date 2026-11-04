@@ -207,12 +207,12 @@ const now = Date.now();
 const ALL = [
   {id:1,name:'cyberviber',branch:'main',term:'Ghostty',tab:1,state:'input',act:'Allow Bash: pio run -t upload?',since:42,ctx:38},
   {id:2,name:'explore-api',branch:'feat/oauth',term:'Ghostty',tab:2,state:'working',act:'Editing AuthResource.java',since:187,ctx:64},
-  {id:3,name:'dotfiles',branch:'main',term:'iTerm2',tab:1,state:'done',act:'Done · 3 files changed',since:305,ctx:21},
-  {id:4,name:'renovate-sweep',branch:'main',term:'Ghostty',tab:4,state:'working',act:'Running mvn verify',since:64,ctx:82},
-  {id:5,name:'foh-wing',branch:'rider-2026',term:'Terminal',tab:2,state:'idle',act:'No activity',since:2710,ctx:12},
-  {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,state:'input',act:'Which Quarkus version: 3.27 LTS or 3.30?',since:15,ctx:47},
+  {id:3,name:'dotfiles',branch:'main',term:'Tabby',tab:1,state:'done',act:'Done · 3 files changed',since:305,ctx:21},
+  {id:4,name:'renovate-sweep',branch:'main',term:'Ghostty',tab:4,zj:'work',state:'working',act:'Running mvn verify',since:64,ctx:82},
+  {id:5,name:'foh-wing',branch:'rider-2026',term:'Tabby',tab:2,zj:'foh',state:'idle',act:'No activity',since:2710,ctx:12},
+  {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,zj:'work',state:'input',act:'Which Quarkus version: 3.27 LTS or 3.30?',since:15,ctx:47},
   {id:7,name:'pid3-reports',branch:'main',term:'Ghostty',tab:7,state:'working',act:'Querying dl.fact_timecard',since:33,ctx:55},
-  {id:8,name:'homelab',branch:'main',term:'iTerm2',tab:3,state:'done',act:'Done · opened PR #42',since:920,ctx:70},
+  {id:8,name:'homelab',branch:'main',term:'Tabby',tab:3,zj:'lab',state:'done',act:'Done · opened PR #42',since:920,ctx:70},
   {id:9,name:'blog',branch:'drafts',term:'Ghostty',tab:9,state:'idle',act:'No activity',since:5400,ctx:9},
 ].map(s=>({...s,t0:now-s.since*1000}));
 
@@ -432,7 +432,7 @@ document.addEventListener('click', e=>{
   scr.querySelector('.toast')?.remove();
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = `<b>⟶ ${s.term} · tab ${s.tab}</b><br><span class="mut">focusing ${s.name}</span>`;
+  el.innerHTML = `<b>⟶ ${s.term} · ${s.zj?`zellij ${s.zj}`:`tab ${s.tab}`}</b><br><span class="mut">focusing ${s.name}</span>`;
   scr.appendChild(el); setTimeout(()=>el.remove(),1600);
   if(scr.dataset.design==='tl'){ cur.focus = s.id; scr.querySelectorAll('.tile').forEach(x=>x.classList.toggle('focus', x.dataset.id==s.id)); }
 });

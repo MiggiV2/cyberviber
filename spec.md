@@ -57,7 +57,7 @@ Use Claude Code **hooks** (configured in `~/.claude/settings.json`) that post th
 
 The daemon also:
 - marks a session `idle` after **10 min** (configurable) without events in state `ready`;
-- periodically checks that the session's process is still alive (PID/TTY) and drops dead sessions (crash, closed terminal without `SessionEnd`).
+- periodically checks that the `claude` process (PID) is still alive and drops dead sessions (crash, closed terminal without `SessionEnd`).
 
 Per session the daemon keeps:
 
@@ -70,22 +70,75 @@ Per session the daemon keeps:
 | `activity` | short text: last tool + target, or the question/permission text, or `Done · …` |
 | `since` | timestamp of the last state change |
 | `ctx` | context usage in percent, if derivable from the transcript (optional) |
-| `terminal` | `TERM_PROGRAM` (Ghostty, iTerm2, Apple_Terminal, …) |
-| `tty` / terminal session id | from the hook process (`tty`, `ITERM_SESSION_ID`, …) — needed for the jump |
+| `pid` | PID of the `claude` process (found by walking up from the hook process) — liveness + jump |
+| `tty` | controlling TTY of the `claude` process |
+| `zellij` | `ZELLIJ_SESSION_NAME` + `ZELLIJ_PANE_ID`, if the hook runs inside zellij |
+| `terminal` | `ghostty` or `tabby`, resolved from the process tree (see 3.2), **not** from `TERM_PROGRAM` (inside zellij that is inherited from whichever terminal started the zellij server) |
+| `tab` | tab index in the terminal window, when the terminal can report it (display only) |
 
 ### 3.2 Jump to terminal (Mac)
 
-On a tap the device sends the session id; the daemon focuses the matching window/tab:
+**Required:** Ghostty and Tabby on macOS, each **with and without zellij**. Other terminals (iTerm2, Terminal.app) and tmux are out of scope for now; for any unknown terminal the fallback is "activate the app".
 
-| Terminal | Method |
+On a tap the device sends the session id and the daemon runs two steps: **(1)** if the session lives in zellij, focus its pane; **(2)** focus the outer terminal window/tab and bring the app to the front.
+
+#### Step 0: find the outer anchor process
+
+The *anchor* is the process that runs directly in the terminal tab the user sees:
+
+| Setup | Anchor |
 |---|---|
-| iTerm2 | AppleScript: find session by `ITERM_SESSION_ID`, select tab + window, activate |
-| Terminal.app | AppleScript: find tab whose `tty` matches, select, activate |
-| Ghostty | Activate app; select tab/window via its scripting/IPC if available — **to be verified** |
-| tmux inside any terminal | additionally `tmux select-window/select-pane` for the pane owning the TTY |
-| Fallback | activate the terminal app only |
+| no zellij | the `claude` process |
+| zellij | the **zellij client** attached to `ZELLIJ_SESSION_NAME` (the zellij server is detached, so the `claude` process tree does not lead to the terminal) |
 
-macOS will ask once for Automation/Accessibility permission for the daemon.
+Finding the zellij client for a session, in order:
+1. `zellij` processes with a controlling TTY (clients; the server has none) whose command line names the session (`zellij attach S`, `zellij a S`, `zellij -s S`, `zellij --session S`).
+2. The client's IPC socket: the client holds a connection to the session socket under `$TMPDIR/zellij-<uid>/…/<S>` (via `lsof -U`). **To verify.**
+3. If there is exactly one zellij client, use it.
+4. No client found → the session is **detached**: open a new Ghostty window running `zellij attach S` (configurable; Tabby: just activate and report it).
+
+From the anchor, walk up the parent chain until the parent is `Ghostty.app` or `Tabby.app`. That decides `terminal`, and the last process below the app (the tab's login shell) is the **tab root**. The anchor's TTY is the **outer TTY**.
+
+#### Step 1: zellij pane (only with zellij)
+
+```
+zellij --session S action list-panes --json      # pane → tab
+zellij --session S action go-to-tab <tab>         # if focus-pane-id doesn't switch tabs
+zellij --session S action focus-pane-id terminal_<ZELLIJ_PANE_ID>
+```
+
+To verify: the zellij version that introduced `list-panes`/`focus-pane-id` (set as minimum), whether `focus-pane-id` switches tabs, and which client is affected when several are attached.
+
+#### Step 2a: Ghostty (AppleScript, Ghostty ≥ 1.3)
+
+Ghostty's AppleScript dictionary has `window → tab → terminal`, with terminal `id`, `name` and `working directory`, and the commands `focus`, `select tab`, `activate window`. There is **no TTY property**, so the daemon has to map outer TTY → Ghostty terminal:
+
+1. **Cached id:** once resolved, the Ghostty terminal `id` is stored with the session and reused while it still exists.
+2. **Working directory:** if exactly one Ghostty terminal has the session's `cwd` (no zellij only), use it.
+3. **Title marker:** write an OSC 2 title (`\e]2;cv-<random>\a`) to the outer TTY, then poll `every terminal whose name contains "cv-<random>"` for up to ~300 ms. Works with and without zellij because the bytes go straight to the outer terminal. Claude Code / zellij overwrite the title again on their next update.
+
+Then `focus` the terminal and **always** `activate` Ghostty explicitly (focus alone doesn't reliably bring a backgrounded app or another Space to the front). Known pitfall: a second Ghostty process (e.g. started with `ghostty -e`) can take over AppleScript for the bundle id; the daemon detects this and falls back to app activation.
+
+#### Step 2b: Tabby (companion plugin)
+
+Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Tabby plugin** (`tabby-cyberviber`, in `tabby-plugin/`):
+
+- Listens on a Unix socket `~/.cyberviber/tabby.sock`.
+- `list` → all tabs (including panes inside split tabs) with their local shell PID and title.
+- `focus {pid}` → selects the tab (and split pane) whose shell PID is the tab root, then brings the Tabby window to the front.
+
+The daemon matches the tab root PID from step 0. Plugin APIs to verify: tab list + `selectTab` in the app service, the local session's real shell PID, focusing a pane in a split tab, raising the window.
+
+Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only).
+
+#### Matrix
+
+| | no zellij | zellij |
+|---|---|---|
+| **Ghostty** | anchor = `claude` → AppleScript (cached id / cwd / title marker) | zellij pane → anchor = zellij client → AppleScript (cached id / title marker) |
+| **Tabby** | anchor = `claude` → plugin focus by tab root PID | zellij pane → anchor = zellij client → plugin focus by tab root PID |
+
+The daemon answers the device with `focused` (`ok:false` + `reason`, e.g. `detached`, `no-plugin`, `not-found`); the device shows it in the toast. macOS asks once for Automation permission (daemon → Ghostty).
 
 ### 3.3 Transport (Mac ↔ device): USB serial
 
@@ -109,7 +162,8 @@ Daemon → device:
   "sessions": [
     { "id": "a1b2", "name": "quarkus-svc", "branch": "fix/cve", "state": "input",
       "activity": "Which Quarkus version: 3.27 LTS or 3.30?",
-      "since": 1762246125, "ctx": 47, "terminal": "Ghostty", "tab": 6 }
+      "since": 1762246125, "ctx": 47,
+      "terminal": "ghostty", "tab": 6, "zellij": "work" }
   ] }
 ```
 
@@ -120,7 +174,29 @@ Device → daemon:
 { "type": "hello", "device": "cyberviber", "fw": "0.1.0", "layout": "tiling", "theme": "tokyo-night" }
 ```
 
-Daemon → device after a focus: `{ "type": "focused", "id": "a1b2", "ok": true }` (device shows the toast; on `ok:false` a short error toast).
+Daemon → device after a focus: `{ "type": "focused", "id": "a1b2", "ok": true }` or `{ "type": "focused", "id": "a1b2", "ok": false, "reason": "detached" }` (device shows the toast; on `ok:false` a short error toast).
+
+### 3.4 Daemon implementation (Go)
+
+- Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
+- The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds process info (`claude` PID, TTY, `ZELLIJ_SESSION_NAME`, `ZELLIJ_PANE_ID`) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
+- Serial: `go.bug.st/serial` (port enumeration with USB VID/PID, DTR/RTS control).
+- Config: TOML (`github.com/BurntSushi/toml`). Otherwise the standard library only (`net/http`, `encoding/json`, `os/exec` for `osascript`, `git`, `zellij`, `ps`/`lsof`; process tree via `sysctl kern.proc` where possible).
+- Built with `go build`, no CGO; installed via `go install` or a release binary for darwin/arm64 + amd64.
+- Suggested layout:
+
+```
+cmd/cyberviber/      main + subcommands
+internal/session/    session store, state machine, idle/liveness checks
+internal/hook/       hook payload parsing, terminal info
+internal/serial/     port discovery, line framing, reconnect
+internal/proc/       process tree, anchor + tab root resolution, zellij client lookup
+internal/focus/      focus strategies: zellij, ghostty (AppleScript), tabby (plugin socket)
+internal/install/    settings.json hook entries, launchd plist
+tabby-plugin/        Tabby plugin (TypeScript) exposing tab focus over a Unix socket
+firmware/            PlatformIO project for the ESP32
+design/              HTML mockups
+```
 
 ## 4. UI
 
@@ -179,26 +255,6 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 - Blinking and spinner via `lv_timer`.
 - Minimum touch target: 22 px (btop); prefer ≥ 26 px.
 
-### 3.4 Daemon implementation (Go)
-
-- Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
-- The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds terminal info (`TERM_PROGRAM`, TTY, `ITERM_SESSION_ID`, `TMUX_PANE`, parent PID) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
-- Serial: `go.bug.st/serial` (port enumeration with USB VID/PID, DTR/RTS control).
-- Config: TOML (`github.com/BurntSushi/toml`). Otherwise the standard library only (`net/http`, `encoding/json`, `os/exec` for `osascript`, `git`, `tmux`).
-- Built with `go build`, no CGO; installed via `go install` or a release binary for darwin/arm64 + amd64.
-- Suggested layout:
-
-```
-cmd/cyberviber/      main + subcommands
-internal/session/    session store, state machine, idle/liveness checks
-internal/hook/       hook payload parsing, terminal info
-internal/serial/     port discovery, line framing, reconnect
-internal/focus/      per-terminal focus strategies (iTerm2, Terminal, Ghostty, tmux)
-internal/install/    settings.json hook entries, launchd plist
-firmware/            PlatformIO project for the ESP32
-design/              HTML mockups
-```
-
 ## 5. Configuration
 
 Mac (`~/.config/cyberviber/config.toml`):
@@ -216,14 +272,16 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
 2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status`; verify states against real sessions.
-3. **Jump** — focus logic for iTerm2, Terminal.app, Ghostty (+ tmux).
+3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij; test all four combinations.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
 6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
 
 ## 7. Open questions
 
-- Ghostty: which reliable way exists to focus a specific tab/window?
+- zellij: minimum version, tab switching by `focus-pane-id`, behaviour with several attached clients, reliable client → session mapping.
+- Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
+- Tabby plugin API: shell PID per tab, selecting panes in split tabs, raising the window.
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched?
