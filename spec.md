@@ -280,8 +280,20 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 ## 7. Open questions
 
 - zellij: minimum version, tab switching by `focus-pane-id`, behaviour with several attached clients, reliable client → session mapping.
+- Owner's zellij setup: installed version, and are sessions started as `zellij attach <name>` / `zellij -s <name>` (easy client → session mapping) or plain `zellij` (random names, needs the socket lookup)?
 - Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
 - Tabby plugin API: shell PID per tab, selecting panes in split tabs, raising the window.
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched?
+
+## 8. References
+
+- Ghostty AppleScript (≥ 1.3): https://ghostty.org/docs/features/applescript (dictionary: `sdef /Applications/Ghostty.app`)
+- Ghostty focus pitfalls (explicit `activate`, helper instances taking over AppleScript), one user report with many Claude Code sessions: https://github.com/777genius/claude-notifications-go/issues/116
+- ghosttpy, Python wrapper showing the window → tab → terminal model: https://pypi.org/project/ghosttpy/
+- zellij CLI actions: https://zellij.dev/documentation/cli-actions
+- zellij CLI recipes (`list-panes --json`, `focus-pane-id`, `--session`, `ZELLIJ_PANE_ID`): https://zellij.dev/documentation/cli-recipes.html
+- Tabby has no scripted tab focus; other tools fall back to app activation: https://github.com/jiahongc/cc-companion/releases/tag/v1.2.0
+- Tabby window focus issue on macOS: https://github.com/Eugeny/tabby/issues/10373
+- Claude Code hooks: https://docs.claude.com/en/docs/claude-code/hooks
