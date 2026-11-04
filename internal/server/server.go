@@ -24,6 +24,10 @@ type Server struct {
 
 	// Focus brings the session's terminal to the front. nil → "not-implemented".
 	Focus func(id string) (ok bool, reason string)
+	// Device reports the device connection (GET /device); nil → 404.
+	Device func() any
+	// Release frees the serial port for d (POST /release); nil → 404.
+	Release func(d time.Duration)
 
 	mu   sync.Mutex
 	subs map[chan []byte]struct{}
@@ -40,6 +44,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions", s.getSessions)
 	mux.HandleFunc("GET /stream", s.stream)
 	mux.HandleFunc("POST /focus", s.focus)
+	mux.HandleFunc("GET /device", s.device)
+	mux.HandleFunc("POST /release", s.release)
 	mux.HandleFunc("GET /{$}", s.index)
 	return localOnly(mux)
 }
@@ -58,8 +64,11 @@ func (s *Server) Notify() {
 	}
 }
 
+// Snapshot is the current session list as one JSON message.
+func (s *Server) Snapshot() []byte { return s.snapshot() }
+
 func (s *Server) snapshot() []byte {
-	b, _ := json.Marshal(protocol.FromSessions(time.Now().Unix(), s.store.List()))
+	b, _ := json.Marshal(protocol.FromSessions(time.Now(), s.store.List()))
 	return b
 }
 
@@ -133,6 +142,33 @@ func (s *Server) focus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) device(w http.ResponseWriter, _ *http.Request) {
+	if s.Device == nil {
+		http.NotFound(w, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(s.Device())
+}
+
+// release takes {"seconds": n} (default 60, max 600).
+func (s *Server) release(w http.ResponseWriter, r *http.Request) {
+	if s.Release == nil {
+		http.NotFound(w, nil)
+		return
+	}
+	var req struct {
+		Seconds int `json:"seconds"`
+	}
+	_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req)
+	if req.Seconds <= 0 {
+		req.Seconds = 60
+	}
+	req.Seconds = min(req.Seconds, 600)
+	s.Release(time.Duration(req.Seconds) * time.Second)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) index(w http.ResponseWriter, _ *http.Request) {

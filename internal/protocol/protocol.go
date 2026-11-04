@@ -1,7 +1,11 @@
 // Package protocol defines the JSON messages between daemon and device (one message per line).
 package protocol
 
-import "github.com/d135-1r43/cyberviber/internal/session"
+import (
+	"time"
+
+	"github.com/d135-1r43/cyberviber/internal/session"
+)
 
 type Session struct {
 	ID       string `json:"id"`
@@ -19,11 +23,13 @@ type Session struct {
 type Sessions struct {
 	Type     string    `json:"type"`
 	Now      int64     `json:"now"`
+	TZ       int       `json:"tz"` // the Mac's UTC offset in seconds, for the device clock
 	Sessions []Session `json:"sessions"`
 }
 
-func FromSessions(now int64, list []session.Session) Sessions {
-	out := Sessions{Type: "sessions", Now: now, Sessions: make([]Session, 0, len(list))}
+func FromSessions(now time.Time, list []session.Session) Sessions {
+	_, tz := now.Zone()
+	out := Sessions{Type: "sessions", Now: now.Unix(), TZ: tz, Sessions: make([]Session, 0, len(list))}
 	for _, s := range list {
 		out.Sessions = append(out.Sessions, Session{
 			ID: s.ID, Name: s.Name, Branch: s.Branch, State: string(s.State), Activity: s.Activity,

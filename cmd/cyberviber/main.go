@@ -28,6 +28,7 @@ import (
 	"github.com/d135-1r43/cyberviber/internal/proc"
 	"github.com/d135-1r43/cyberviber/internal/protocol"
 	"github.com/d135-1r43/cyberviber/internal/registry"
+	"github.com/d135-1r43/cyberviber/internal/serial"
 	"github.com/d135-1r43/cyberviber/internal/server"
 	"github.com/d135-1r43/cyberviber/internal/session"
 )
@@ -41,6 +42,7 @@ usage:
   cyberviber daemon       run the daemon (started by launchd after install)
   cyberviber status       list sessions known to the daemon
   cyberviber sim          open the browser simulator (daemon must be running)
+  cyberviber release [s]  free the device's serial port for s seconds (default 60), e.g. to flash it
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
   cyberviber uninstall    remove hooks and the launchd agent
   cyberviber version      print the version
@@ -71,6 +73,8 @@ func main() {
 		err = runStatus(cfg)
 	case "sim":
 		err = exec.Command("open", fmt.Sprintf("http://127.0.0.1:%d/", cfg.Port)).Run()
+	case "release":
+		err = runRelease(cfg, os.Args[2:])
 	case "install":
 		err = runInstall(os.Args[2:])
 	case "uninstall":
@@ -112,7 +116,13 @@ func runDaemon(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	api := server.New(store, save)
+	link := serial.New(cfg.Serial, cfg.Baud)
+	link.Version = version
+	api := server.New(store, func() { save(); link.Notify() })
+	notify := func() { api.Notify(); link.Notify() }
+	link.Snapshot = func() []byte { return api.Snapshot() }
+	api.Device = func() any { return link.Status() }
+	api.Release = link.Release
 	focuser := &focus.Focuser{
 		Lookup:   store.Get,
 		Get:      proc.Get,
@@ -124,10 +134,11 @@ func runDaemon(cfg config.Config) error {
 		res := focuser.Focus(id)
 		log.Printf("focus %s: %+v", id, res)
 		if res.Terminal != "" && store.SetTerminal(id, res.Terminal, res.Tab) {
-			api.Notify()
+			notify()
 		}
 		return res.OK, res.Reason
 	}
+	link.Focus = api.Focus
 	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 2 * time.Second}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -143,11 +154,12 @@ func runDaemon(cfg config.Config) error {
 				synced := store.Sync(discover())
 				if store.Tick(now, proc.Alive) || synced {
 					save()
-					api.Notify()
+					notify()
 				}
 			}
 		}
 	}()
+	go link.Run(ctx)
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -180,6 +192,51 @@ func discover() []session.Discovered {
 	return out
 }
 
+func runRelease(cfg config.Config, args []string) error {
+	sec := 60
+	if len(args) > 0 {
+		n, err := strconv.Atoi(args[0])
+		if err != nil || n <= 0 {
+			return fmt.Errorf("release: seconds must be a positive number, got %q", args[0])
+		}
+		sec = n
+	}
+	c := http.Client{Timeout: 2 * time.Second}
+	body := strings.NewReader(fmt.Sprintf(`{"seconds":%d}`, sec))
+	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/release", cfg.Port), "application/json", body)
+	if err != nil {
+		fmt.Println("daemon not running, port is free")
+		return nil
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("release: %s", resp.Status)
+	}
+	// the daemon closes the port asynchronously
+	for i := 0; i < 20; i++ {
+		var st serial.Status
+		if getJSON(cfg, "/device", &st) == nil && !st.Connected {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Printf("serial port released for %ds\n", sec)
+	return nil
+}
+
+func getJSON(cfg config.Config, path string, v any) error {
+	c := http.Client{Timeout: 2 * time.Second}
+	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d%s", cfg.Port, path))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errors.New(resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(v)
+}
+
 func runStatus(cfg config.Config) error {
 	c := http.Client{Timeout: 2 * time.Second}
 	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/sessions", cfg.Port))
@@ -190,6 +247,17 @@ func runStatus(cfg config.Config) error {
 	var msg protocol.Sessions
 	if err := json.NewDecoder(resp.Body).Decode(&msg); err != nil {
 		return err
+	}
+	var dev serial.Status
+	if getJSON(cfg, "/device", &dev) == nil {
+		switch {
+		case dev.Connected:
+			fmt.Printf("device: %s (fw %s)\n\n", dev.Port, dev.Firmware)
+		case dev.Released > 0:
+			fmt.Printf("device: port released until %s\n\n", time.Unix(dev.Released, 0).Format("15:04:05"))
+		default:
+			fmt.Print("device: not connected\n\n")
+		}
 	}
 	if len(msg.Sessions) == 0 {
 		fmt.Println("no claude running")

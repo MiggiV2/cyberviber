@@ -18,8 +18,8 @@ Non-goals (for now): typing into sessions from the device, answering permission 
 | | |
 |---|---|
 | Board | TZT ESP32-2432S024 ("Cheap Yellow Display" family), ESP32-WROOM-32, Wi-Fi + BLE |
-| Display | 2.4" TFT, 240×320, ILI9341 (SPI) |
-| Touch | Touch controller on the board (variant-dependent: XPT2046 resistive or CST820 capacitive — confirm on the unit) |
+| Display | 2.4" TFT, 240×320, ILI9341-compatible (SPI: SCLK 14, MOSI 13, MISO 12, DC 2, CS 15, BL 27). **Verified:** the controller memory is 320×240 with BGR order; LovyanGFX `panel_width=320, panel_height=240, rgb_order=true`, rotation 5 = upright portrait with USB at the top |
+| Touch | **Verified:** XPT2046 resistive (the "R" variant; no I²C device answers, so not the CST820), on the display's SPI bus with CS 33, IRQ 36. Calibrated once on the device (LovyanGFX four-corner routine), stored in NVS |
 | UI library | LVGL 9 |
 | Orientation | Portrait, 240×320 |
 | Connection | USB (power + serial data to the Mac). Onboard Wi-Fi/BLE unused for now |
@@ -167,7 +167,9 @@ The board is plugged into the Mac anyway for power, so the same cable carries th
 - **Auto-reset:** opening the port toggles DTR/RTS, which resets the ESP32 on this board. The daemon opens the port with DTR/RTS held inactive; if the board resets anyway, it just sends `hello` again after boot and receives the full state.
 - **Liveness:** the daemon sends the full session list on every change and at least every 5 s. If the device hears nothing for 15 s it shows "waiting for Mac…".
 - **Firmware logging:** off by default in release builds, so the line stream stays clean.
-- **Flashing:** the daemon holds the serial port open. `cyberviber release` (or stopping the launchd agent) frees it for `pio run -t upload`; the daemon reattaches afterwards.
+- **Flashing:** the daemon holds the serial port open. `cyberviber release [s]` (`POST /release`) frees it for `pio run -t upload`; the daemon reattaches afterwards. **Verified:** release → flash → reattach.
+- **Handshake (implemented):** the daemon sends `{"type":"hello","daemon":"cyberviber",…}` every second while probing a port; the firmware answers with its own `hello` (and also says hello once after boot). Probing gives up after 6 s per port. A `log` message from the device (debug builds) goes to the daemon log. `GET /device` reports the connection; `cyberviber status` prints it.
+- **Clock:** the `sessions` message carries `tz` (the Mac's UTC offset in seconds) so the device can show local time.
 
 The session lists are tiny (< 2 KB for 9 sessions), so 115200 baud is plenty; the full list is sent each time, no diffing.
 
@@ -307,7 +309,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 1b. **Browser simulator** — daemon serves the design page with live sessions via SSE. ✅
 2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
 3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Tabby + zellij verified end to end; Tabby without zellij and Ghostty (both modes) pending live verification.
-4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
+4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`). ✅ (`firmware/`, LVGL 9.2 + LovyanGFX + ArduinoJson; USB link in `internal/serial`)
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
 6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
 
@@ -317,7 +319,6 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 - Owner's zellij setup: installed version, and are sessions started as `zellij attach <name>` / `zellij -s <name>` (easy client → session mapping) or plain `zellij` (random names, needs the socket lookup)?
 - Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
 - Ghostty path is implemented and unit-tested, but Ghostty isn't installed on the dev machine: verify the AppleScript property names (`id`, `working directory`, `name`) and the title marker on a real Ghostty ≥ 1.3.
-- Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched? (currently: decay after `idle_after`)
 - Interrupting a turn with Esc: handled via the registry status (see 3.1); verify on a real interrupt.
