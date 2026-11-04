@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -191,5 +192,42 @@ func TestShouldRejectForeignOriginsAndHosts(t *testing.T) {
 				t.Fatalf("got %d, want %d", r.StatusCode, c.want)
 			}
 		})
+	}
+}
+
+func TestShouldValidateAndForwardConfig(t *testing.T) {
+	api, ts := newTestServer(t)
+	var got []protocol.Config
+	api.Configure = func(c protocol.Config) error {
+		got = append(got, c)
+		return nil
+	}
+	post := func(body string) int {
+		resp, err := http.Post(ts.URL+"/config", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if c := post(`{"layout":"tiling"}`); c != http.StatusNoContent {
+		t.Fatalf("status = %d", c)
+	}
+	if c := post(`{"theme":"nord","layout":"btop"}`); c != http.StatusNoContent {
+		t.Fatalf("status = %d", c)
+	}
+	for _, bad := range []string{`{"layout":"nope"}`, `{"theme":"nope"}`, `{}`, `x`} {
+		if c := post(bad); c != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d", bad, c)
+		}
+	}
+	want := []protocol.Config{{Type: "config", Layout: "tiling"}, {Type: "config", Layout: "btop", Theme: "nord"}}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %+v", got)
+	}
+
+	api.Configure = func(protocol.Config) error { return errors.New("device not connected") }
+	if c := post(`{"layout":"tiling"}`); c != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", c)
 	}
 }

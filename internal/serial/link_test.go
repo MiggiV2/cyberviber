@@ -3,8 +3,11 @@ package serial
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
 	"io"
 	"sync"
 	"testing"
@@ -215,5 +218,65 @@ func TestShouldReconnectAfterDisconnect(t *testing.T) {
 	dev2.next(t, "sessions")
 	if fw := l.Status().Firmware; fw != "0.1.1" {
 		t.Fatalf("fw = %q", fw)
+	}
+}
+
+func TestShouldAssembleScreenshot(t *testing.T) {
+	port, dev := newFake()
+	l, cancel := startLink(t, map[string]*fakePort{"/dev/cu.device": port})
+	defer cancel()
+	dev.next(t, "hello")
+	dev.send(t, `{"type":"hello","device":"cyberviber","fw":"0.2.0"}`)
+	dev.next(t, "sessions")
+
+	type result struct {
+		img image.Image
+		err error
+	}
+	res := make(chan result, 1)
+	go func() {
+		img, err := l.Screenshot(context.Background())
+		res <- result{img, err}
+	}()
+	dev.next(t, "screenshot")
+	// 2×4 image in two strips; pure red is 0xF800 (little-endian 00 F8)
+	strip := base64.StdEncoding.EncodeToString([]byte{0x00, 0xF8, 0x00, 0xF8, 0x00, 0xF8, 0x00, 0xF8})
+	dev.send(t, `{"type":"shot","w":2,"h":4,"y":0,"n":2,"data":"`+strip+`"}`)
+	dev.send(t, `{"type":"shot","w":2,"h":4,"y":2,"n":2,"data":"AAB#garbled"}`) // damaged in transit
+	dev.send(t, `{"type":"shot_end"}`)
+	if m := dev.next(t, "screenshot"); m["y"] != 2.0 || m["rows"] != 2.0 {
+		t.Fatalf("re-request = %v", m)
+	}
+	dev.send(t, `{"type":"shot","w":2,"h":4,"y":2,"n":2,"data":"`+strip+`"}`)
+	dev.send(t, `{"type":"shot_end"}`)
+	select {
+	case r := <-res:
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if c := color.RGBAModel.Convert(r.img.At(1, 3)).(color.RGBA); c != (color.RGBA{255, 0, 0, 255}) {
+			t.Fatalf("pixel = %v", c)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("screenshot did not complete")
+	}
+}
+
+func TestShouldSendConfigOnlyWhenConnected(t *testing.T) {
+	l := New("auto", 115200)
+	if err := l.Send([]byte(`{"type":"config"}`)); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("err = %v", err)
+	}
+	port, dev := newFake()
+	l2, cancel := startLink(t, map[string]*fakePort{"/dev/cu.device": port})
+	defer cancel()
+	dev.next(t, "hello")
+	dev.send(t, `{"type":"hello","device":"cyberviber","fw":"0.2.0"}`)
+	dev.next(t, "sessions")
+	if err := l2.Send([]byte(`{"type":"config","layout":"tiling"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if m := dev.next(t, "config"); m["layout"] != "tiling" {
+		t.Fatalf("config = %v", m)
 	}
 }

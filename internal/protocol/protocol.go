@@ -39,6 +39,20 @@ func FromSessions(now time.Time, list []session.Session) Sessions {
 	return out
 }
 
+// Layouts and Themes are the ids the firmware knows (spec §4.2, §4.3).
+var (
+	Layouts = []string{"waybar", "tiling", "btop", "walker", "hyprlock"}
+	Themes  = []string{"tokyo-night", "catppuccin", "gruvbox", "everforest", "kanagawa", "nord",
+		"rose-pine", "matte-black", "osaka-jade", "ristretto", "catppuccin-latte"}
+)
+
+// Config changes the device's layout and/or theme; empty fields stay as they are.
+type Config struct {
+	Type   string `json:"type"`
+	Layout string `json:"layout,omitempty"`
+	Theme  string `json:"theme,omitempty"`
+}
+
 // Focus is sent by the device (or simulator) when a session is tapped.
 type Focus struct {
 	Type string `json:"type,omitempty"`

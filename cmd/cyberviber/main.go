@@ -2,11 +2,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"image/png"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -14,6 +17,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -42,6 +46,9 @@ usage:
   cyberviber daemon       run the daemon (started by launchd after install)
   cyberviber status       list sessions known to the daemon
   cyberviber sim          open the browser simulator (daemon must be running)
+  cyberviber layout [id]  show or set the device layout (waybar, tiling, btop, walker, hyprlock)
+  cyberviber theme [id]   show or set the device theme (tokyo-night, nord, … see 'theme list')
+  cyberviber screenshot [file.png]  save the device screen (takes ~20 s)
   cyberviber release [s]  free the device's serial port for s seconds (default 60), e.g. to flash it
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
   cyberviber uninstall    remove hooks and the launchd agent
@@ -75,6 +82,12 @@ func main() {
 		err = exec.Command("open", fmt.Sprintf("http://127.0.0.1:%d/", cfg.Port)).Run()
 	case "release":
 		err = runRelease(cfg, os.Args[2:])
+	case "layout":
+		err = runConfig(cfg, "layout", protocol.Layouts, os.Args[2:])
+	case "theme":
+		err = runConfig(cfg, "theme", protocol.Themes, os.Args[2:])
+	case "screenshot":
+		err = runScreenshot(cfg, os.Args[2:])
 	case "install":
 		err = runInstall(os.Args[2:])
 	case "uninstall":
@@ -123,6 +136,19 @@ func runDaemon(cfg config.Config) error {
 	link.Snapshot = func() []byte { return api.Snapshot() }
 	api.Device = func() any { return link.Status() }
 	api.Release = link.Release
+	api.Configure = func(c protocol.Config) error {
+		b, _ := json.Marshal(c)
+		return link.Send(b)
+	}
+	api.Screenshot = func(ctx context.Context) ([]byte, error) {
+		img, err := link.Screenshot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var buf bytes.Buffer
+		err = png.Encode(&buf, img)
+		return buf.Bytes(), err
+	}
 	focuser := &focus.Focuser{
 		Lookup:   store.Get,
 		Get:      proc.Get,
@@ -221,6 +247,79 @@ func runRelease(cfg config.Config, args []string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	fmt.Printf("serial port released for %ds\n", sec)
+	return nil
+}
+
+// runConfig shows (no argument), lists ("list") or sets the device's layout or theme.
+func runConfig(cfg config.Config, key string, valid []string, args []string) error {
+	var st serial.Status
+	if err := getJSON(cfg, "/device", &st); err != nil {
+		return fmt.Errorf("daemon not reachable on port %d (is it running?)", cfg.Port)
+	}
+	cur := st.Layout
+	if key == "theme" {
+		cur = st.Theme
+	}
+	if len(args) == 0 || args[0] == "list" {
+		if len(args) == 0 && !st.Connected {
+			return serial.ErrNotConnected
+		}
+		for _, v := range valid {
+			mark := "  "
+			if v == cur {
+				mark = "* "
+			}
+			fmt.Println(mark + v)
+		}
+		return nil
+	}
+	if !slices.Contains(valid, args[0]) {
+		return fmt.Errorf("unknown %s %q (one of: %s)", key, args[0], strings.Join(valid, ", "))
+	}
+	c := http.Client{Timeout: 2 * time.Second}
+	body, _ := json.Marshal(map[string]string{key: args[0]})
+	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/config", cfg.Port), "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	msg, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("%s: %s", key, strings.TrimSpace(string(msg)))
+	}
+	// the device confirms with a hello carrying the applied config
+	for i := 0; i < 30; i++ {
+		if getJSON(cfg, "/device", &st) == nil && (key == "layout" && st.Layout == args[0] || key == "theme" && st.Theme == args[0]) {
+			fmt.Printf("%s: %s\n", key, args[0])
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("%s sent, but the device did not confirm it", key)
+}
+
+func runScreenshot(cfg config.Config, args []string) error {
+	out := "cyberviber.png"
+	if len(args) > 0 {
+		out = args[0]
+	}
+	c := http.Client{Timeout: 70 * time.Second}
+	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/screenshot", cfg.Port))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("screenshot: %s", strings.TrimSpace(string(b)))
+	}
+	if err := os.WriteFile(out, b, 0o644); err != nil {
+		return err
+	}
+	fmt.Println("saved", out)
 	return nil
 }
 

@@ -60,15 +60,21 @@ type Link struct {
 
 	notify  chan struct{}
 	release chan time.Duration
+	out     chan []byte
 
 	mu     sync.Mutex
 	status Status
+	shot   *shot // screenshot in progress
 }
+
+// ErrNotConnected is returned when a message needs the device and none is connected.
+var ErrNotConnected = errors.New("device not connected")
 
 func (l *Link) init() {
 	if l.notify == nil {
 		l.notify = make(chan struct{}, 1)
 		l.release = make(chan time.Duration, 1)
+		l.out = make(chan []byte, 8)
 	}
 	if l.Open == nil {
 		l.Open = openPort
@@ -106,6 +112,19 @@ func (l *Link) Release(d time.Duration) {
 	default:
 	}
 	l.release <- d
+}
+
+// Send queues one message (a JSON object) for the connected device.
+func (l *Link) Send(msg []byte) error {
+	if !l.Status().Connected {
+		return ErrNotConnected
+	}
+	select {
+	case l.out <- msg:
+		return nil
+	default:
+		return errors.New("device busy")
+	}
 }
 
 func (l *Link) Status() Status {
@@ -299,6 +318,9 @@ func (l *Link) probe(ctx context.Context, path string) (*conn, hello, error) {
 // serve pushes session lists and handles device messages. It returns a positive duration
 // when the port was released, otherwise the error that ended the connection.
 func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
+	for len(l.out) > 0 { // drop messages meant for an earlier connection
+		<-l.out
+	}
 	if err := c.write(l.Snapshot()); err != nil {
 		return 0, err
 	}
@@ -323,11 +345,18 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 			return 0, err
 		case err := <-werr:
 			return 0, err
+		case b := <-l.out:
+			send(b)
 		case <-l.notify:
+			if l.shotBusy() { // writing while the device streams a screenshot damages the stream
+				continue
+			}
 			send(l.Snapshot())
 			tick.Reset(keepalive)
 		case <-tick.C:
-			send(l.Snapshot())
+			if !l.shotBusy() {
+				send(l.Snapshot())
+			}
 		case line := <-c.lines:
 			var m inbound
 			if json.Unmarshal(line, &m) != nil {
@@ -342,6 +371,10 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 					l.setStatus(st)
 				}
 				send(l.Snapshot())
+			case "shot":
+				l.shotLine(line)
+			case "shot_end":
+				l.shotEnd(send)
 			case "log": // debug builds of the firmware, e.g. touch calibration
 				l.Logf("device: %s", line)
 			case "focus":

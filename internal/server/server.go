@@ -3,12 +3,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -28,6 +30,10 @@ type Server struct {
 	Device func() any
 	// Release frees the serial port for d (POST /release); nil → 404.
 	Release func(d time.Duration)
+	// Configure sends a config message to the device (POST /config); nil → 404.
+	Configure func(c protocol.Config) error
+	// Screenshot returns the device screen as PNG (GET /screenshot); nil → 404.
+	Screenshot func(ctx context.Context) ([]byte, error)
 
 	mu   sync.Mutex
 	subs map[chan []byte]struct{}
@@ -46,6 +52,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /focus", s.focus)
 	mux.HandleFunc("GET /device", s.device)
 	mux.HandleFunc("POST /release", s.release)
+	mux.HandleFunc("POST /config", s.config)
+	mux.HandleFunc("GET /screenshot", s.screenshot)
 	mux.HandleFunc("GET /{$}", s.index)
 	return localOnly(mux)
 }
@@ -169,6 +177,49 @@ func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 	req.Seconds = min(req.Seconds, 600)
 	s.Release(time.Duration(req.Seconds) * time.Second)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// config takes {"layout": id, "theme": id}; unknown ids are rejected.
+func (s *Server) config(w http.ResponseWriter, r *http.Request) {
+	if s.Configure == nil {
+		http.NotFound(w, nil)
+		return
+	}
+	var c protocol.Config
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&c); err != nil || c.Layout == "" && c.Theme == "" {
+		http.Error(w, "bad config", http.StatusBadRequest)
+		return
+	}
+	if c.Layout != "" && !slices.Contains(protocol.Layouts, c.Layout) {
+		http.Error(w, "unknown layout "+c.Layout, http.StatusBadRequest)
+		return
+	}
+	if c.Theme != "" && !slices.Contains(protocol.Themes, c.Theme) {
+		http.Error(w, "unknown theme "+c.Theme, http.StatusBadRequest)
+		return
+	}
+	c.Type = "config"
+	if err := s.Configure(c); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) screenshot(w http.ResponseWriter, r *http.Request) {
+	if s.Screenshot == nil {
+		http.NotFound(w, nil)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	png, err := s.Screenshot(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(png)
 }
 
 func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
