@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cyberviber designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--z:1.5}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg2);color:var(--fg);font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;min-height:100vh;padding:28px 16px 80px;transition:background .25s,color .25s}
+.wrap{max-width:1500px;margin:0 auto}
+header{display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+h1{font-size:28px;font-weight:800;letter-spacing:-.5px}
+h1 .acc{color:var(--accent)}
+.sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:640px;line-height:1.5}
+.ctl{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lbl{color:var(--muted);font-size:11px;width:56px;text-transform:uppercase;letter-spacing:1px}
+.chip{border:1px solid var(--border);background:var(--surface);color:var(--fg);padding:5px 9px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--muted)}
+.chip.on{border-color:var(--accent);color:var(--accent)}
+.sw{display:inline-flex}
+.sw i{width:7px;height:12px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:18px;font-size:12px;margin:18px 0 30px;padding:10px 12px;border:1px solid var(--border);background:var(--bg)}
+.legend b{font-weight:800;margin-right:6px}
+.grid{display:flex;flex-wrap:wrap;gap:40px 32px;justify-content:center}
+.dev{display:flex;flex-direction:column;align-items:center;gap:14px}
+.bezel{background:#0c0c0e;padding:12px 12px 26px;border-radius:8px;box-shadow:0 0 0 1px #2a2a2e,0 18px 40px rgba(0,0,0,.45);position:relative}
+.bezel::after{content:'ESP32-2432S024 · 240×320';position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:9px;color:#55555c;letter-spacing:1px}
+.note{max-width:calc(240px * var(--z) + 24px);font-size:12px;line-height:1.5}
+.note h3{font-size:14px;margin-bottom:4px}
+.note h3 span{color:var(--accent)}
+.note p{color:var(--muted)}
+footer.notes{margin-top:56px;border-top:1px solid var(--border);padding-top:20px;font-size:12px;line-height:1.7;color:var(--muted);columns:2 320px;column-gap:40px}
+footer.notes b{color:var(--fg)}
+
+/* ---------- screen (everything inside is "device pixels") ---------- */
+.scr{zoom:var(--z);position:relative;width:240px;height:320px;overflow:hidden;background:var(--bg);color:var(--fg);font-size:12px;line-height:1.25;user-select:none;-webkit-user-select:none}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mut{color:var(--muted)}
+.c-input{color:var(--red)} .c-working{color:var(--yellow)} .c-done{color:var(--green)} .c-idle{color:var(--muted)}
+.bg-input{background:var(--red)} .bg-working{background:var(--yellow)} .bg-done{background:var(--green)} .bg-idle{background:var(--muted)}
+.bd-input{border-color:var(--red)!important} .bd-working{border-color:var(--yellow)!important} .bd-done{border-color:var(--green)!important} .bd-idle{border-color:var(--border)!important}
+.tap{cursor:pointer}
+.flash{animation:flash .45s ease-out}
+@keyframes flash{0%{box-shadow:inset 0 0 0 400px var(--accent)}100%{box-shadow:inset 0 0 0 400px transparent}}
+.blink{animation:blink 1.2s steps(1) infinite}
+@keyframes blink{50%{opacity:.25}}
+.nm{font-weight:700;font-size:13px}
+.act{color:var(--muted);font-size:11px}
+.spin{display:inline-block;width:1ch;text-align:center}
+.toast{position:absolute;left:14px;right:14px;bottom:14px;z-index:9;background:var(--bg);border:2px solid var(--accent);padding:8px 10px;font-size:11px;line-height:1.45;animation:toast 1.6s forwards}
+.toast b{color:var(--accent)}
+@keyframes toast{0%{opacity:0;transform:translateY(8px)}10%,80%{opacity:1;transform:none}100%{opacity:0}}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--muted);font-size:11px}
+.empty .big{font-size:40px;color:var(--accent)}
+.empty .h{font-size:13px;color:var(--fg);font-weight:700}
+
+/* A · waybar */
+.wb-bar{height:20px;background:var(--bg2);display:flex;align-items:center;justify-content:space-between;padding:0 4px 0 2px;font-size:11px;border-bottom:1px solid var(--border)}
+.wb-ws{display:flex}
+.wb-ws span{min-width:14px;padding:0 2px;text-align:center;line-height:20px;font-weight:700}
+.wb-ws span.hot{background:var(--red);color:var(--bg)}
+.wb-r{display:flex;gap:6px}
+.wb-list{position:absolute;top:20px;left:0;right:0;bottom:34px}
+.wb-row{height:44px;display:flex;align-items:center;gap:8px;padding-right:8px;border-bottom:1px solid var(--surface)}
+.wb-stripe{width:3px;align-self:stretch;display:block}
+.wb-main{flex:1;min-width:0}
+.wb-main .act{margin-top:3px}
+.br{color:var(--muted);font-weight:400;font-size:11px}
+.wb-side{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:11px}
+.wb-side .g{font-size:14px;font-weight:800;line-height:1}
+.wb-foot{position:absolute;bottom:0;left:0;right:0;height:34px;background:var(--bg2);border-top:1px solid var(--border);padding:6px 8px 0}
+.seg{display:flex;height:4px;gap:2px;background:var(--surface)}
+.seg i{display:block;height:100%}
+.wb-sum{display:flex;justify-content:space-between;font-size:11px;margin-top:6px}
+.wb-sum span{font-weight:700}
+
+/* B · tiling */
+.tl-bar{height:18px;display:flex;justify-content:space-between;align-items:center;padding:0 7px;font-size:10px;background:var(--bg2)}
+.tl-bar .acc{color:var(--accent);font-weight:800}
+.tl-grid{position:absolute;top:18px;left:0;right:0;bottom:0;padding:5px;display:grid;gap:5px}
+.tile{border:2px solid var(--border);padding:4px 6px;display:flex;flex-direction:column;gap:3px;min-height:0;min-width:0;overflow:hidden;container-type:size}
+.tile.focus{border-color:var(--accent)}
+.tile.st-input{border-color:var(--red);animation:bb 1.6s steps(1) infinite}
+@keyframes bb{50%{border-color:var(--border)}}
+.tl-h{display:flex;justify-content:space-between;gap:4px;align-items:baseline}
+.tl-h .nm{font-size:12px;min-width:0}
+.tl-h .t{font-size:10px;flex:none}
+.tl-mid{display:flex;align-items:center;gap:6px;flex:1;min-height:0}
+.tl-g{font-size:24px;font-weight:800;line-height:1}
+.tl-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.tl-act{font-size:10px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile.st-input .tl-act{color:var(--fg)}
+.tl-f{font-size:9px;color:var(--muted)}
+@container (max-width:84px){.tl-lab,.tl-f{display:none}.tl-h .t{display:none}}
+@container (max-height:84px){.tl-act{display:none}}
+@container (min-height:140px){.tl-g{font-size:34px}.tl-act{-webkit-line-clamp:3;font-size:11px}}
+
+/* C · btop */
+.bt-box{position:absolute;border:1px solid var(--border);border-radius:6px}
+.bt-ti{position:absolute;top:-7px;left:8px;background:var(--bg);padding:0 3px;font-size:10px;line-height:12px;color:var(--fg);font-weight:700}
+.bt-ti sup{color:var(--accent);font-size:8px}
+.bt-ti.r{left:auto;right:8px;color:var(--muted);font-weight:400}
+.bt-ti.b{top:auto;bottom:-7px}
+.bt-m{display:grid;grid-template-columns:38px 1fr 18px;align-items:center;font-size:10px;height:15px}
+.bt-cells{display:flex;gap:1px}
+.bt-cells i{display:block;width:8px;height:7px}.bt-cells i:not([class]){background:var(--surface)}
+.bt-v{text-align:right;font-weight:700}
+.bt-hd,.bt-r{display:grid;grid-template-columns:14px 1fr 34px 36px;gap:4px;align-items:center;padding:0 6px}
+.bt-hd{font-size:9px;height:16px;text-transform:uppercase;letter-spacing:1px}
+.bt-r{height:22px;font-size:11px}
+.bt-r.sel{background:var(--surface)}
+.bt-r .g{font-weight:800;text-align:center}
+.bt-r .t{text-align:right;font-size:10px}
+.bt-ctx{display:flex;gap:1px}
+.bt-ctx i{display:block;width:6px;height:8px}.bt-ctx i:not([class]){background:var(--surface)}
+.bt-r.sel .bt-ctx i:not([class]){background:var(--border)}
+
+/* D · walker */
+.wk{background:var(--bg2)}
+.wk-p{position:absolute;inset:8px;border:2px solid var(--accent);background:var(--bg);display:flex;flex-direction:column}
+.wk-in{height:34px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px}
+.wk-in .acc{color:var(--accent);font-weight:800}
+.wk-in .caret{color:var(--accent);margin-left:-5px}
+.wk-in .n{margin-left:auto;font-size:11px}
+.wk-l{flex:1;overflow:hidden;padding:4px}
+.wk-it{height:48px;display:flex;align-items:center;gap:9px;padding:0 6px}
+.wk-it.sel{background:var(--surface)}
+.wk-it.sel .nm{color:var(--accent)}
+.wk-ic{width:30px;height:30px;flex:none;border:2px solid;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+.wk-tx{flex:1;min-width:0}
+.wk-tx .act{margin-top:3px}
+.wk-rt{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px}
+.wk-ft{height:20px;flex:none;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:9px}
+
+/* E · hyprlock */
+.lk-top{height:24px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px}
+.lk-card{margin:4px 10px 0;padding:10px 10px 10px;border:2px solid var(--red)}
+.lk-card.done{border-color:var(--green)}
+.lk-lab{display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:2px}
+.lk-name{font-size:22px;font-weight:800;margin:8px 0 4px;letter-spacing:-.5px}
+.lk-act{font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:48px}
+.lk-meta{font-size:10px;margin:6px 0 10px}
+.lk-btn{height:34px;border:2px solid;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+.lk-btn.input{background:var(--red);color:var(--bg);border-color:var(--red)}
+.lk-btn.done{background:var(--green);color:var(--bg);border-color:var(--green)}
+.lk-o{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:10px 10px 0}
+.lk-c{height:26px;border:1px solid var(--border);display:flex;align-items:center;gap:6px;padding:0 7px;font-size:11px;min-width:0}
+.lk-c .g{font-weight:800;flex:none}
+.lk-clock{font-size:64px;font-weight:800;text-align:center;letter-spacing:-3px;margin-top:22px;line-height:1}
+.lk-date{text-align:center;font-size:12px;margin-top:6px}
+.lk-q{margin:18px 10px 0;height:34px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="acc">›</span> cyberviber</h1>
+      <p class="sub">Claude Code session manager for the 2.4" ESP32 touch display. Five layout directions, each rendered at the real 240×320 resolution. Tap any session to simulate the jump to its terminal. Switch Omarchy themes to see the palette carry through.</p>
+    </div>
+    <div class="ctl">
+      <div class="row"><span class="lbl">theme</span><span class="row" id="themes"></span></div>
+      <div class="row"><span class="lbl">sessions</span><span class="row" id="counts"></span>
+        <span class="lbl" style="width:auto;margin-left:14px">zoom</span><span class="row" id="zooms"></span>
+        <button class="chip" id="shuffle" style="margin-left:14px">↻ shuffle states</button></div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span><b class="c-input">!</b>needs you <span class="mut">— permission prompt or question</span></span>
+    <span><b class="c-done">✓</b>ready <span class="mut">— turn finished, your move</span></span>
+    <span><b class="c-working">✻</b>working <span class="mut">— thinking / running tools</span></span>
+    <span><b class="c-idle">◦</b>idle <span class="mut">— untouched for a while</span></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer class="notes">
+    <p><b>Sort order everywhere:</b> needs you → ready → working → idle, then most recent first. The thing you should look at is always top-left.</p>
+    <p><b>Colour logic:</b> state colours are the theme's own red / yellow / green, so they stay readable in every Omarchy palette. The theme accent is only used for chrome: focus, selection, toasts.</p>
+    <p><b>LVGL feasibility:</b> everything here is flat rectangles, 1–2px borders, solid fills and one monospace font. No blur, gradients or shadows on the device. Blinking is a timer toggling a style. Tiles use <code>lv_obj</code> with flex/grid layout; lists map to <code>lv_list</code>-style containers.</p>
+    <p><b>Fonts:</b> JetBrains Mono here; on the device, convert it (or CaskaydiaMono, Omarchy's default) with lv_font_conv at 10/12/14/22px. Include the glyphs ✻✢✳✶✽✓◦›⟶ for the spinner and icons.</p>
+    <p><b>Touch targets:</b> the panel is resistive/capacitive at ~166 ppi. Rows under ~28px (option C) will be fiddly. B, D and E are the most finger-friendly.</p>
+  </footer>
+</div>
+
+<script>
+const THEMES = {
+  'tokyo-night':      {name:'Tokyo Night', bg:'#1a1b26',bg2:'#16161e',surface:'#24283b',border:'#3b4261',fg:'#c0caf5',muted:'#565f89',accent:'#7aa2f7',red:'#f7768e',yellow:'#e0af68',green:'#9ece6a'},
+  'catppuccin':       {name:'Catppuccin', bg:'#1e1e2e',bg2:'#181825',surface:'#313244',border:'#45475a',fg:'#cdd6f4',muted:'#7f849c',accent:'#cba6f7',red:'#f38ba8',yellow:'#f9e2af',green:'#a6e3a1'},
+  'gruvbox':          {name:'Gruvbox', bg:'#282828',bg2:'#1d2021',surface:'#3c3836',border:'#504945',fg:'#ebdbb2',muted:'#928374',accent:'#d79921',red:'#fb4934',yellow:'#fabd2f',green:'#b8bb26'},
+  'everforest':       {name:'Everforest', bg:'#2d353b',bg2:'#232a2e',surface:'#343f44',border:'#475258',fg:'#d3c6aa',muted:'#859289',accent:'#a7c080',red:'#e67e80',yellow:'#dbbc7f',green:'#a7c080'},
+  'kanagawa':         {name:'Kanagawa', bg:'#1f1f28',bg2:'#16161d',surface:'#2a2a37',border:'#363646',fg:'#dcd7ba',muted:'#727169',accent:'#7e9cd8',red:'#e46876',yellow:'#e6c384',green:'#98bb6c'},
+  'nord':             {name:'Nord', bg:'#2e3440',bg2:'#242933',surface:'#3b4252',border:'#4c566a',fg:'#eceff4',muted:'#7b88a1',accent:'#88c0d0',red:'#bf616a',yellow:'#ebcb8b',green:'#a3be8c'},
+  'rose-pine':        {name:'Rosé Pine', bg:'#191724',bg2:'#13111d',surface:'#26233a',border:'#403d52',fg:'#e0def4',muted:'#6e6a86',accent:'#c4a7e7',red:'#eb6f92',yellow:'#f6c177',green:'#9ccfd8'},
+  'matte-black':      {name:'Matte Black', bg:'#121212',bg2:'#0a0a0a',surface:'#1e1e1e',border:'#333333',fg:'#bebebe',muted:'#6b6b6b',accent:'#e68e0d',red:'#d35f5f',yellow:'#ffc107',green:'#8fb573'},
+  'osaka-jade':       {name:'Osaka Jade', bg:'#111c18',bg2:'#0b1411',surface:'#1b2b24',border:'#2c4237',fg:'#c1c497',muted:'#53685b',accent:'#2dd5b7',red:'#ff5345',yellow:'#e5c736',green:'#549e6a'},
+  'ristretto':        {name:'Ristretto', bg:'#2c2525',bg2:'#211c1c',surface:'#403838',border:'#5b5353',fg:'#fff1f3',muted:'#948a8b',accent:'#f38d70',red:'#fd6883',yellow:'#f9cc6c',green:'#adda78'},
+  'catppuccin-latte': {name:'Latte', bg:'#eff1f5',bg2:'#e6e9ef',surface:'#ccd0da',border:'#bcc0cc',fg:'#4c4f69',muted:'#8c8fa1',accent:'#8839ef',red:'#d20f39',yellow:'#df8e1d',green:'#40a02b'},
+};
+
+const now = Date.now();
+const ALL = [
+  {id:1,name:'cyberviber',branch:'main',term:'Ghostty',tab:1,state:'input',act:'Allow Bash: pio run -t upload?',since:42,ctx:38},
+  {id:2,name:'explore-api',branch:'feat/oauth',term:'Ghostty',tab:2,state:'working',act:'Editing AuthResource.java',since:187,ctx:64},
+  {id:3,name:'dotfiles',branch:'main',term:'iTerm2',tab:1,state:'done',act:'Done · 3 files changed',since:305,ctx:21},
+  {id:4,name:'renovate-sweep',branch:'main',term:'Ghostty',tab:4,state:'working',act:'Running mvn verify',since:64,ctx:82},
+  {id:5,name:'foh-wing',branch:'rider-2026',term:'Terminal',tab:2,state:'idle',act:'No activity',since:2710,ctx:12},
+  {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,state:'input',act:'Which Quarkus version: 3.27 LTS or 3.30?',since:15,ctx:47},
+  {id:7,name:'pid3-reports',branch:'main',term:'Ghostty',tab:7,state:'working',act:'Querying dl.fact_timecard',since:33,ctx:55},
+  {id:8,name:'homelab',branch:'main',term:'iTerm2',tab:3,state:'done',act:'Done · opened PR #42',since:920,ctx:70},
+  {id:9,name:'blog',branch:'drafts',term:'Ghostty',tab:9,state:'idle',act:'No activity',since:5400,ctx:9},
+].map(s=>({...s,t0:now-s.since*1000}));
+
+const ST = {
+  input:  {label:'needs you',g:'!'},
+  done:   {label:'ready',g:'✓'},
+  working:{label:'working',g:null},
+  idle:   {label:'idle',g:'◦'},
+};
+const ORDER = {input:0,done:1,working:2,idle:3};
+const SPIN = ['·','✢','✳','✶','✻','✽','✻','✶','✳','✢'];
+
+let cur = {theme:'tokyo-night',count:6,zoom:1.5,focus:null};
+try{ Object.assign(cur, JSON.parse(localStorage.getItem('cv-design')||'{}')) }catch(e){}
+
+const G = s => s.state==='working' ? '<span class="spin">✻</span>' : ST[s.state].g;
+const T = s => `<span class="t" data-id="${s.id}"></span>`;
+const list = () => ALL.slice(0,cur.count).sort((a,b)=>ORDER[a.state]-ORDER[b.state]||b.t0-a.t0);
+const counts = L => L.reduce((c,s)=>(c[s.state]++,c),{input:0,done:0,working:0,idle:0});
+const empty = `<div class="empty"><div class="big"><span class="spin">✻</span></div><div class="h">no claude running</div><div>start one with <b>claude</b> in any terminal</div></div>`;
+const fmt = sec => sec<60?`${sec}s`: sec<3600?`${Math.floor(sec/60)}m${String(sec%60).padStart(2,'0')}`:`${Math.floor(sec/3600)}h${String(Math.floor(sec%3600/60)).padStart(2,'0')}`;
+const clock = () => new Date().toTimeString().slice(0,5);
+const date = () => new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'}).toLowerCase();
+
+/* ---------------- A · waybar ---------------- */
+function rWaybar(L){
+  const c = counts(L), vis = L.slice(0,6), more = L.length-vis.length;
+  const seg = L.length ? ['input','done','working','idle'].filter(k=>c[k]).map(k=>`<i class="bg-${k}" style="flex:${c[k]}"></i>`).join('') : '';
+  return `
+  <div class="wb-bar">
+    <div class="wb-ws">${L.map((s,i)=>`<span class="tap c-${s.state} ${s.state==='input'?'hot':''}" data-id="${s.id}">${i+1}</span>`).join('') || '<span class="mut">–</span>'}</div>
+    <div class="clk"></div>
+    <div class="wb-r"><span class="mut">◉ ${L.length}</span></div>
+  </div>
+  <div class="wb-list">${vis.map(s=>`
+    <div class="wb-row tap" data-id="${s.id}">
+      <i class="wb-stripe bg-${s.state}"></i>
+      <div class="wb-main">
+        <div class="nm ell">${s.name}<span class="br"> ${s.branch}</span></div>
+        <div class="act ell ${s.state==='input'?'c-input':''}">${s.act}</div>
+      </div>
+      <div class="wb-side"><span class="g c-${s.state} ${s.state==='input'?'blink':''}">${G(s)}</span><span class="mut">${T(s)}</span></div>
+    </div>`).join('')}${L.length?'':empty}
+  </div>
+  <div class="wb-foot">
+    <div class="seg">${seg}</div>
+    <div class="wb-sum">
+      <span class="c-input">! ${c.input}</span><span class="c-done">✓ ${c.done}</span><span class="c-working">✻ ${c.working}</span><span class="c-idle">◦ ${c.idle}</span>
+      <span class="mut" style="font-weight:400">${more>0?`+${more} ↓`:'&nbsp;'}</span>
+    </div>
+  </div>`;
+}
+
+/* ---------------- B · tiling ---------------- */
+function rTiling(L){
+  const n = L.length, cols = n<=2?1:n<=6?2:3, rows = Math.max(1,Math.ceil(n/cols)), rem = n%cols;
+  const c = counts(L);
+  const focus = cur.focus ?? L[0]?.id;
+  return `
+  <div class="tl-bar"><span class="acc">cyberviber</span><span class="clk"></span><span>${c.input?`<span class="c-input">${c.input}!</span> `:''}<span class="mut">${n}</span></span></div>
+  <div class="tl-grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">
+  ${L.map((s,i)=>`
+    <div class="tile tap st-${s.state} ${s.id===focus?'focus':''}" data-id="${s.id}" ${i===n-1&&rem?`style="grid-column:span ${cols-rem+1}"`:''}>
+      <div class="tl-h"><span class="nm ell">${s.name}</span><span class="mut">${T(s)}</span></div>
+      <div class="tl-mid c-${s.state}"><span class="tl-g">${G(s)}</span><span class="tl-lab">${ST[s.state].label}</span></div>
+      <div class="tl-act">${s.act}</div>
+      <div class="tl-f ell">${s.term}:${s.tab} · ${s.branch}</div>
+    </div>`).join('')}
+  </div>${n?'':empty}`;
+}
+
+/* ---------------- C · btop ---------------- */
+function rBtop(L){
+  const c = counts(L), n = L.length || 1;
+  const meter = (k,lab) => {
+    const f = Math.round(c[k]/n*14);
+    return `<div class="bt-m"><span class="mut">${lab}</span><span class="bt-cells">${Array.from({length:14},(_,i)=>`<i ${i<f?`class="bg-${k}"`:''}></i>`).join('')}</span><span class="bt-v c-${k}">${c[k]}</span></div>`;
+  };
+  const ctx = p => { const f = Math.round(p/20), col = p>=80?'input':p>=50?'working':'done';
+    return `<span class="bt-ctx">${Array.from({length:5},(_,i)=>`<i ${i<f?`class="bg-${col}"`:''}></i>`).join('')}</span>`; };
+  const vis = L.slice(0,8), more = L.length-vis.length;
+  return `
+  <div class="bt-box" style="top:8px;left:4px;right:4px;height:80px;padding:10px 8px 0">
+    <span class="bt-ti"><sup>¹</sup>status</span><span class="bt-ti r"><span class="clk"></span></span>
+    ${meter('input','need')}${meter('done','ready')}${meter('working','busy')}${meter('idle','idle')}
+  </div>
+  <div class="bt-box" style="top:98px;left:4px;right:4px;bottom:8px;padding-top:6px">
+    <span class="bt-ti"><sup>²</sup>sessions</span><span class="bt-ti r">${L.length} total</span>
+    <div class="bt-hd mut"><span></span><span>name</span><span>ctx</span><span style="text-align:right">time</span></div>
+    ${vis.map(s=>`
+    <div class="bt-r tap ${s.state==='input'?'sel':''}" data-id="${s.id}">
+      <span class="g c-${s.state}">${G(s)}</span>
+      <span class="ell ${s.state==='idle'?'mut':''}">${s.name}</span>
+      ${ctx(s.ctx)}
+      <span class="t mut" data-id="${s.id}"></span>
+    </div>`).join('')}
+    ${L.length?'':'<div class="mut" style="padding:20px 8px;text-align:center;font-size:11px">no claude running</div>'}
+    <span class="bt-ti b mut" style="font-weight:400">${more>0?`↓ ${more} more`:'tap → focus'}</span>
+  </div>`;
+}
+
+/* ---------------- D · walker ---------------- */
+function rWalker(L){
+  const vis = L.slice(0,5), more = L.length-vis.length;
+  return `
+  <div class="wk-p">
+    <div class="wk-in"><span class="acc">›</span><span>claude</span><span class="caret blink">▏</span><span class="n mut">${L.length} running</span></div>
+    <div class="wk-l">${vis.map((s,i)=>`
+      <div class="wk-it tap ${i===0?'sel':''}" data-id="${s.id}">
+        <div class="wk-ic bd-${s.state} c-${s.state}">${G(s)}</div>
+        <div class="wk-tx"><div class="nm ell">${s.name}</div><div class="act ell ${s.state==='input'?'c-input':''}">${s.act}</div></div>
+        <div class="wk-rt"><span class="mut">tab ${s.tab}</span><span class="mut">${T(s)}</span></div>
+      </div>`).join('')}
+      ${L.length?'':'<div class="mut" style="padding:40px 10px;text-align:center;font-size:11px">no results</div>'}
+    </div>
+    <div class="wk-ft mut"><span>tap to focus terminal</span><span>${more>0?`+${more} ↓`:''}</span></div>
+  </div>`;
+}
+
+/* ---------------- E · hyprlock ---------------- */
+function rLock(L){
+  const top = L[0];
+  const hot = top && (top.state==='input' || top.state==='done');
+  const c = counts(L);
+  const rest = hot ? L.slice(1) : L;
+  const chips = rest.slice(0, hot?6:4);
+  const more = rest.length - chips.length;
+  const chipHTML = chips.map(s=>`<div class="lk-c tap" data-id="${s.id}"><span class="g c-${s.state}">${G(s)}</span><span class="ell">${s.name}</span></div>`).join('')
+    + (more>0?`<div class="lk-c mut" style="justify-content:center">+${more} more</div>`:'');
+  if(!hot) return `
+    <div class="lk-clock clk"></div>
+    <div class="lk-date mut">${date()}</div>
+    <div class="lk-q">${L.length?`${c.working} working · nothing needs you`:'no claude running'}</div>
+    <div class="lk-o">${chipHTML}</div>`;
+  const nIn = top.state==='input' ? c.input : c.done;
+  return `
+    <div class="lk-top mut"><span class="clk"></span><span>·</span><span>${date()}</span></div>
+    <div class="lk-card tap ${top.state}" data-id="${top.id}">
+      <div class="lk-lab c-${top.state}"><span><span class="${top.state==='input'?'blink':''}">●</span> ${top.state==='input'?'NEEDS YOU':'YOUR TURN'}</span><span class="mut">1/${nIn}</span></div>
+      <div class="lk-name ell">${top.name}</div>
+      <div class="lk-act">${top.act}</div>
+      <div class="lk-meta mut">${top.term} · tab ${top.tab} · ${T(top)}</div>
+      <div class="lk-btn ${top.state}">tap to jump ⟶</div>
+    </div>
+    <div class="lk-o">${chipHTML}</div>`;
+}
+
+const DESIGNS = [
+  {id:'wb', cls:'', title:'waybar', tag:'A', render:rWaybar,
+   desc:'Dense list with a waybar on top: sessions show up like Hyprland workspace numbers. Most information per pixel and the simplest LVGL build.'},
+  {id:'tl', cls:'', title:'tiling', tag:'B', render:rTiling,
+   desc:'Every session is a tiled window with gaps and 2px borders. A tile that needs you blinks its border. Grows from 1 to 9 tiles. Big touch targets.'},
+  {id:'bt', cls:'', title:'btop', tag:'C', render:rBtop,
+   desc:'TUI dashboard: rounded boxes with inline titles, state meters and context bars. Feels the most like a terminal, but has the smallest touch rows.'},
+  {id:'wk', cls:'wk', title:'walker', tag:'D', render:rWalker,
+   desc:'Launcher-style picker: a framed panel with a prompt line and 48px rows with state icons. Feels like picking which app to bring to the front.'},
+  {id:'lk', cls:'', title:'hyprlock', tag:'E', render:rLock,
+   desc:'Attention first: the session that needs you fills the screen with one big jump button, and the rest shrink to chips. Shows a large clock when nothing needs you.'},
+];
+
+/* ---------------- app ---------------- */
+const $ = id => document.getElementById(id);
+function save(){ try{ localStorage.setItem('cv-design', JSON.stringify({theme:cur.theme,count:cur.count,zoom:cur.zoom})) }catch(e){} }
+
+function applyTheme(){
+  const t = THEMES[cur.theme] || THEMES['tokyo-night'];
+  for(const k in t) if(k!=='name') document.documentElement.style.setProperty('--'+k, t[k]);
+  document.documentElement.style.setProperty('--z', cur.zoom);
+}
+function controls(){
+  $('themes').innerHTML = Object.entries(THEMES).map(([k,t])=>
+    `<button class="chip ${k===cur.theme?'on':''}" data-theme="${k}"><span class="sw"><i style="background:${t.bg}"></i><i style="background:${t.accent}"></i><i style="background:${t.red}"></i><i style="background:${t.green}"></i></span>${t.name}</button>`).join('');
+  $('counts').innerHTML = [0,1,3,6,9].map(n=>`<button class="chip ${n===cur.count?'on':''}" data-count="${n}">${n}</button>`).join('');
+  $('zooms').innerHTML = [1,1.5,2].map(z=>`<button class="chip ${z===cur.zoom?'on':''}" data-zoom="${z}">${z}×</button>`).join('');
+}
+function render(){
+  applyTheme(); controls();
+  const L = list();
+  $('grid').innerHTML = DESIGNS.map(d=>`
+    <div class="dev">
+      <div class="bezel"><div class="scr ${d.cls}" data-design="${d.id}">${d.render(L)}</div></div>
+      <div class="note"><h3><span>${d.tag}</span> · ${d.title}</h3><p>${d.desc}</p></div>
+    </div>`).join('');
+  tick(); spin();
+}
+function tick(){
+  const n = Date.now();
+  document.querySelectorAll('.t[data-id]').forEach(el=>{
+    const s = ALL.find(x=>x.id==el.dataset.id); el.textContent = fmt(Math.floor((n-s.t0)/1000));
+  });
+  document.querySelectorAll('.clk').forEach(el=>el.textContent = clock());
+}
+let f = 0;
+function spin(){ const g = SPIN[f%SPIN.length]; document.querySelectorAll('.spin').forEach(el=>el.textContent=g); }
+setInterval(()=>{f++;spin()},120);
+setInterval(tick,1000);
+
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-theme],[data-count],[data-zoom]');
+  if(b){
+    if(b.dataset.theme) cur.theme = b.dataset.theme;
+    if(b.dataset.count) cur.count = +b.dataset.count;
+    if(b.dataset.zoom) cur.zoom = +b.dataset.zoom;
+    save(); render(); return;
+  }
+  if(e.target.closest('#shuffle')){
+    const ks = Object.keys(ST);
+    ALL.forEach(s=>{ s.state = ks[Math.floor(Math.random()*ks.length)];
+      s.t0 = Date.now() - Math.floor(Math.random()*900)*1000;
+      if(s.state==='idle') s.act='No activity'; });
+    cur.focus = null; render(); return;
+  }
+  const t = e.target.closest('.scr .tap');
+  if(!t) return;
+  const s = ALL.find(x=>x.id==t.dataset.id), scr = t.closest('.scr');
+  t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+  scr.querySelector('.toast')?.remove();
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<b>⟶ ${s.term} · tab ${s.tab}</b><br><span class="mut">focusing ${s.name}</span>`;
+  scr.appendChild(el); setTimeout(()=>el.remove(),1600);
+  if(scr.dataset.design==='tl'){ cur.focus = s.id; scr.querySelectorAll('.tile').forEach(x=>x.classList.toggle('focus', x.dataset.id==s.id)); }
+});
+
+render();
+</script>
+</body>
+</html>
