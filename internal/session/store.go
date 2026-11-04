@@ -161,6 +161,29 @@ func (s *Store) Tick(now time.Time, alive func(pid int) bool) bool {
 	return changed
 }
 
+// Get returns one session.
+func (s *Store) Get(id string) (Session, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ss, ok := s.sessions[id]
+	if !ok {
+		return Session{}, false
+	}
+	return *ss, true
+}
+
+// SetTerminal records where a session's terminal was found (shown on the device).
+func (s *Store) SetTerminal(id, terminal string, tab int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ss, ok := s.sessions[id]
+	if !ok || ss.Terminal == terminal && ss.Tab == tab {
+		return false
+	}
+	ss.Terminal, ss.Tab = terminal, tab
+	return true
+}
+
 // List returns all sessions: needs input → ready → working → idle, then most recent first.
 func (s *Store) List() []Session {
 	s.mu.Lock()

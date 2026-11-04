@@ -111,3 +111,38 @@ func TestShouldGiveUpAtLaunchd(t *testing.T) {
 		t.Fatal("expected no agent")
 	}
 }
+
+func TestShouldParseProcargs(t *testing.T) {
+	// given argc=2, exec path, padding, argv, env
+	b := []byte{2, 0, 0, 0}
+	b = append(b, "/x/versions/2.1.318\x00\x00\x00claude\x00--resume\x00ZELLIJ_PANE_ID=23\x00HOME=/Users/m\x00\x00"...)
+
+	// when
+	exe, argv, env := parseProcargs(b)
+
+	// then
+	if exe != "/x/versions/2.1.318" || len(argv) != 2 || argv[0] != "claude" || argv[1] != "--resume" {
+		t.Fatalf("exe=%q argv=%q", exe, argv)
+	}
+	if len(env) != 2 || env[0] != "ZELLIJ_PANE_ID=23" {
+		t.Fatalf("env=%q", env)
+	}
+}
+
+func TestShouldReadOwnEnvironment(t *testing.T) {
+	if got := Env(os.Getpid())["HOME"]; got != os.Getenv("HOME") {
+		t.Fatalf("HOME = %q", got)
+	}
+}
+
+func TestShouldListAncestors(t *testing.T) {
+	get := fakeTable(
+		Proc{PID: 90, PPID: 80, Name: "zellij"},
+		Proc{PID: 80, PPID: 70, Name: "zsh"},
+		Proc{PID: 70, PPID: 1, Name: "Tabby"},
+	)
+	chain := chain(90, get)
+	if len(chain) != 3 || chain[0].PID != 90 || chain[2].PID != 70 {
+		t.Fatalf("%+v", chain)
+	}
+}

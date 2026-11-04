@@ -49,24 +49,85 @@ func Get(pid int) (Proc, error) {
 	return p, nil
 }
 
-// args reads the executable path and argv[0] via kern.procargs2:
-// int32 argc, exec path, NUL padding, argv[0], …
+// args reads the executable path and argv[0] via kern.procargs2.
 func args(pid int) (exe, name string) {
 	b, err := unix.SysctlRaw("kern.procargs2", pid)
-	if err != nil || len(b) < 4 {
+	if err != nil {
 		return "", ""
 	}
+	exe, argv, _ := parseProcargs(b)
+	if len(argv) > 0 {
+		name = filepath.Base(argv[0])
+	}
+	return exe, name
+}
+
+// Env returns the environment of a process (readable for processes of the same user).
+func Env(pid int) map[string]string {
+	b, err := unix.SysctlRaw("kern.procargs2", pid)
+	if err != nil {
+		return nil
+	}
+	_, _, env := parseProcargs(b)
+	m := make(map[string]string, len(env))
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+// parseProcargs splits a kern.procargs2 buffer:
+// int32 argc, exec path, NUL padding, argc × argv, env strings, empty string.
+func parseProcargs(b []byte) (exe string, argv, env []string) {
+	if len(b) < 4 {
+		return "", nil, nil
+	}
+	argc := int(int32(b[0]) | int32(b[1])<<8 | int32(b[2])<<16 | int32(b[3])<<24)
 	rest := b[4:]
 	i := bytes.IndexByte(rest, 0)
 	if i < 0 {
-		return "", ""
+		return "", nil, nil
 	}
-	exe, rest = string(rest[:i]), rest[i:]
-	rest = bytes.TrimLeft(rest, "\x00")
-	if j := bytes.IndexByte(rest, 0); j >= 0 {
-		rest = rest[:j]
+	exe, rest = string(rest[:i]), bytes.TrimLeft(rest[i:], "\x00")
+	for len(rest) > 0 {
+		j := bytes.IndexByte(rest, 0)
+		if j < 0 {
+			j = len(rest)
+		}
+		str := string(rest[:j])
+		if j < len(rest) {
+			rest = rest[j+1:]
+		} else {
+			rest = nil
+		}
+		if len(argv) < argc {
+			argv = append(argv, str)
+			continue
+		}
+		if str == "" {
+			break
+		}
+		env = append(env, str)
 	}
-	return exe, filepath.Base(string(rest))
+	return exe, argv, env
+}
+
+// Chain returns pid and its ancestors up to (excluding) launchd.
+func Chain(pid int) []Proc { return chain(pid, Get) }
+
+func chain(pid int, get func(int) (Proc, error)) []Proc {
+	var out []Proc
+	for i := 0; i < 64 && pid > 1; i++ {
+		p, err := get(pid)
+		if err != nil {
+			break
+		}
+		out = append(out, p)
+		pid = p.PPID
+	}
+	return out
 }
 
 // Alive reports whether a process with this PID exists.

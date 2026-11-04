@@ -1,0 +1,314 @@
+package focus
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"cyberviber/internal/proc"
+	"cyberviber/internal/session"
+)
+
+func table(procs ...proc.Proc) func(int) (proc.Proc, error) {
+	m := map[int]proc.Proc{}
+	for _, p := range procs {
+		m[p.PID] = p
+	}
+	return func(pid int) (proc.Proc, error) {
+		if p, ok := m[pid]; ok {
+			return p, nil
+		}
+		return proc.Proc{}, errors.New("no such process")
+	}
+}
+
+const tabbyExe = "/Applications/Tabby.app/Contents/MacOS/Tabby"
+
+func TestShouldResolveTabbyTab(t *testing.T) {
+	// given zellij client(90) <- zsh(80, tab root) <- Tabby(70)
+	get := table(
+		proc.Proc{PID: 90, PPID: 80, Name: "zellij", TTY: "ttys015"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh", TTY: "ttys015"},
+		proc.Proc{PID: 70, PPID: 1, Name: "Tabby", Exe: tabbyExe},
+	)
+
+	// when
+	term, ok := ResolveTerminal(90, get)
+
+	// then
+	if !ok || term.App != "tabby" || term.Bundle != "/Applications/Tabby.app" || term.TTY != "ttys015" ||
+		len(term.Chain) != 2 || term.Chain[0] != 90 || term.Chain[1] != 80 {
+		t.Fatalf("ok=%v %+v", ok, term)
+	}
+}
+
+func TestShouldResolveGhosttyThroughLogin(t *testing.T) {
+	get := table(
+		proc.Proc{PID: 90, PPID: 85, Name: "claude", TTY: "ttys003"},
+		proc.Proc{PID: 85, PPID: 80, Name: "-zsh"},
+		proc.Proc{PID: 80, PPID: 70, Name: "login", Exe: "/usr/bin/login"},
+		proc.Proc{PID: 70, PPID: 1, Name: "ghostty", Exe: "/Applications/Ghostty.app/Contents/MacOS/ghostty"},
+	)
+	term, ok := ResolveTerminal(90, get)
+	if !ok || term.App != "ghostty" || len(term.Chain) != 3 {
+		t.Fatalf("ok=%v %+v", ok, term)
+	}
+}
+
+func TestShouldNotResolveWithoutApp(t *testing.T) {
+	get := table(proc.Proc{PID: 90, PPID: 1, Name: "zellij"})
+	if _, ok := ResolveTerminal(90, get); ok {
+		t.Fatal("expected no terminal")
+	}
+}
+
+const lsofOut = `p61652
+f5
+d0xcfb2
+n->0x5385
+f7
+d0xecd0
+n->0x8bc2
+p98824
+f5
+d0xd8b2
+n/var/folders/T/zellij-501/contract_version_1/sincere-drum
+f6
+d0x5385
+n/var/folders/T/zellij-501/contract_version_1/sincere-drum
+f11
+d0x3816
+n->0x6140
+p77777
+f5
+d0x1111
+n/var/folders/T/zellij-501/contract_version_1/other
+`
+
+func TestShouldMapZellijClientsToSessions(t *testing.T) {
+	got := ParseLsof(lsofOut)
+	if len(got["sincere-drum"]) != 1 || got["sincere-drum"][0] != 61652 || len(got["other"]) != 0 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestShouldNormalizePaneID(t *testing.T) {
+	for in, want := range map[string]string{"23": "terminal_23", "terminal_23": "terminal_23", "plugin_2": "plugin_2"} {
+		if got := paneID(in); got != want {
+			t.Errorf("%s → %s, want %s", in, got, want)
+		}
+	}
+}
+
+// fakePlugin answers like the Tabby plugin on a unix socket in dir.
+func fakePlugin(t *testing.T, dir string, matchPID int) *[]focusRequest {
+	t.Helper()
+	ln, err := net.Listen("unix", filepath.Join(dir, "4242.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var seen []focusRequest
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			var req focusRequest
+			json.NewDecoder(bufio.NewReader(c)).Decode(&req)
+			seen = append(seen, req)
+			ok := false
+			for _, p := range req.PIDs {
+				ok = ok || p == matchPID
+			}
+			json.NewEncoder(c).Encode(map[string]any{"ok": ok, "index": 3})
+			c.Close()
+		}
+	}()
+	return &seen
+}
+
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	d, err := os.MkdirTemp("/tmp", "cv") // unix socket paths are limited to 104 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(d) })
+	return d
+}
+
+func TestShouldAskTabbyPluginAndRemoveStaleSockets(t *testing.T) {
+	// given
+	dir := shortTempDir(t)
+	seen := fakePlugin(t, dir, 80)
+	os.WriteFile(filepath.Join(dir, "1.sock"), nil, 0o600) // stale: not a socket
+
+	// when
+	tab, err := FocusTabby(dir, []int{90, 80})
+
+	// then
+	if err != nil || tab != 3 || len(*seen) != 1 || (*seen)[0].Cmd != "focus" {
+		t.Fatalf("tab=%d err=%v seen=%+v", tab, err, *seen)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "1.sock")); !os.IsNotExist(err) {
+		t.Fatal("stale socket must be removed")
+	}
+}
+
+func TestShouldReportNoPluginAndNotFound(t *testing.T) {
+	if _, err := FocusTabby(shortTempDir(t), []int{1}); !errors.Is(err, ErrNoPlugin) {
+		t.Fatalf("err=%v", err)
+	}
+	dir := shortTempDir(t)
+	fakePlugin(t, dir, 80)
+	if _, err := FocusTabby(dir, []int{1}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+type recorder struct {
+	calls   []string
+	answers map[string]string // substring of the call → output
+}
+
+func (r *recorder) run(name string, args ...string) ([]byte, error) {
+	call := name + " " + strings.Join(args, " ")
+	r.calls = append(r.calls, call)
+	for k, v := range r.answers {
+		if strings.Contains(call, k) {
+			return []byte(v), nil
+		}
+	}
+	return nil, nil
+}
+
+func newFocuser(s session.Session, get func(int) (proc.Proc, error), env map[string]string, r *recorder, tabbyDir string) *Focuser {
+	return &Focuser{
+		Lookup:   func(id string) (session.Session, bool) { return s, id == s.ID },
+		Get:      get,
+		Env:      func(int) map[string]string { return env },
+		Run:      r.run,
+		TabbyDir: tabbyDir,
+	}
+}
+
+func TestShouldFocusZellijPaneThenTabbyTab(t *testing.T) {
+	// given claude(100) runs in zellij pane 23 of sincere-drum; client 90 runs in a Tabby tab
+	get := table(
+		proc.Proc{PID: 100, PPID: 99, Name: "claude"},
+		proc.Proc{PID: 99, PPID: 98, Name: "zsh"},
+		proc.Proc{PID: 98, PPID: 1, Name: "zellij"},
+		proc.Proc{PID: 90, PPID: 80, Name: "zellij", TTY: "ttys015", Exe: "/opt/homebrew/bin/zellij"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "Tabby", Exe: tabbyExe},
+	)
+	r := &recorder{answers: map[string]string{"lsof": strings.ReplaceAll(strings.ReplaceAll(lsofOut, "61652", "90"), "98824", "98")}}
+	dir := shortTempDir(t)
+	seen := fakePlugin(t, dir, 80)
+	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
+		map[string]string{"ZELLIJ_SESSION_NAME": "sincere-drum", "ZELLIJ_PANE_ID": "23"}, r, dir)
+
+	// when
+	res := f.Focus("s1")
+
+	// then
+	if !res.OK || res.Terminal != "tabby" || res.Zellij != "sincere-drum" {
+		t.Fatalf("%+v calls=%v", res, r.calls)
+	}
+	joined := strings.Join(r.calls, "\n")
+	if !strings.Contains(joined, "/opt/homebrew/bin/zellij --session sincere-drum action focus-pane-id terminal_23") {
+		t.Fatalf("zellij not focused: %v", r.calls)
+	}
+	if !strings.Contains(joined, "open -a /Applications/Tabby.app") {
+		t.Fatalf("tabby not activated: %v", r.calls)
+	}
+	if len(*seen) != 1 || (*seen)[0].PIDs[0] != 90 {
+		t.Fatalf("plugin must get the client chain: %+v", *seen)
+	}
+}
+
+func TestShouldPreferZellijInfoFromHooks(t *testing.T) {
+	get := table(proc.Proc{PID: 100, PPID: 1, Name: "claude"})
+	r := &recorder{}
+	f := newFocuser(session.Session{ID: "s1", PID: 100, ZellijSession: "work", ZellijPane: "7"}, get, nil, r, shortTempDir(t))
+	res := f.Focus("s1")
+	if res.Reason != "detached" || !strings.Contains(strings.Join(r.calls, "\n"), "zellij --session work action focus-pane-id terminal_7") {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+}
+
+func TestShouldFocusTabbyWithoutZellij(t *testing.T) {
+	get := table(
+		proc.Proc{PID: 100, PPID: 80, Name: "claude", TTY: "ttys003"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "Tabby", Exe: tabbyExe},
+	)
+	r := &recorder{}
+	dir := shortTempDir(t)
+	fakePlugin(t, dir, 80)
+	res := newFocuser(session.Session{ID: "s1", PID: 100}, get, map[string]string{}, r, dir).Focus("s1")
+	if !res.OK || strings.Contains(strings.Join(r.calls, "\n"), "zellij") {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+}
+
+func TestShouldActivateTabbyAndReportMissingPlugin(t *testing.T) {
+	get := table(
+		proc.Proc{PID: 100, PPID: 80, Name: "claude"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "Tabby", Exe: tabbyExe},
+	)
+	r := &recorder{}
+	res := newFocuser(session.Session{ID: "s1", PID: 100}, get, nil, r, shortTempDir(t)).Focus("s1")
+	if res.OK || res.Reason != "no-plugin" || !strings.Contains(strings.Join(r.calls, "\n"), "open -a /Applications/Tabby.app") {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+}
+
+func TestShouldReportUnknownSessionsAndProcesses(t *testing.T) {
+	r := &recorder{}
+	f := newFocuser(session.Session{ID: "s1"}, table(), nil, r, shortTempDir(t))
+	if res := f.Focus("nope"); res.Reason != "not-found" {
+		t.Fatalf("%+v", res)
+	}
+	if res := f.Focus("s1"); res.Reason != "no-process" {
+		t.Fatalf("%+v", res)
+	}
+}
+
+func TestShouldFocusGhosttyByCachedIDThenCwd(t *testing.T) {
+	// given
+	get := table(
+		proc.Proc{PID: 100, PPID: 80, Name: "claude", TTY: "ttys003"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "ghostty", Exe: "/Applications/Ghostty.app/Contents/MacOS/ghostty"},
+	)
+	r := &recorder{answers: map[string]string{"working directory is": "ABC-123\n"}}
+	f := newFocuser(session.Session{ID: "s1", PID: 100, Cwd: "/Users/m/git/x"}, get, nil, r, shortTempDir(t))
+
+	// when: first focus resolves by cwd and caches the id
+	res := f.Focus("s1")
+
+	// then
+	if !res.OK || res.Terminal != "ghostty" {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+	r.calls = nil
+	r.answers = map[string]string{`id is "ABC-123"`: "ok\n"}
+	if res := f.Focus("s1"); !res.OK || !strings.Contains(strings.Join(r.calls, "\n"), `id is "ABC-123"`) {
+		t.Fatalf("cached id not used: %+v %v", res, r.calls)
+	}
+}
+
+func TestShouldEscapeAppleScriptStrings(t *testing.T) {
+	if got := asString(`a"b\c`); got != `"a\"b\\c"` {
+		t.Fatalf("got %s", got)
+	}
+}

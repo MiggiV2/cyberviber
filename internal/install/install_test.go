@@ -2,6 +2,8 @@ package install
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -108,5 +110,36 @@ func TestShouldRenderLaunchAgent(t *testing.T) {
 		if !strings.Contains(p, want) {
 			t.Errorf("plist missing %q", want)
 		}
+	}
+}
+
+func TestShouldInstallAndRemoveTabbyPlugin(t *testing.T) {
+	// given
+	dir := t.TempDir()
+
+	// when
+	path, err := InstallTabbyPlugin(dir)
+
+	// then
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"package.json", "index.js"} {
+		if _, err := os.Stat(filepath.Join(path, f)); err != nil {
+			t.Fatalf("%s missing: %v", f, err)
+		}
+	}
+	if filepath.Base(path) != "tabby-cyberviber" || filepath.Base(filepath.Dir(path)) != "node_modules" {
+		t.Fatalf("unexpected path %s", path)
+	}
+
+	// when
+	if err := RemoveTabbyPlugin(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// then
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("plugin must be removed")
 	}
 }

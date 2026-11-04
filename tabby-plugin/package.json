@@ -1,0 +1,9 @@
+{
+  "name": "tabby-cyberviber",
+  "version": "0.1.0",
+  "description": "Lets cyberviber focus the Tabby tab running a Claude Code session",
+  "keywords": ["tabby-plugin"],
+  "main": "index.js",
+  "author": "cyberviber",
+  "license": "MIT"
+}

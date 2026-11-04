@@ -121,7 +121,7 @@ zellij --session S action go-to-tab <tab>         # if focus-pane-id doesn't swi
 zellij --session S action focus-pane-id terminal_<ZELLIJ_PANE_ID>
 ```
 
-To verify: the zellij version that introduced `list-panes`/`focus-pane-id` (set as minimum), whether `focus-pane-id` switches tabs, and which client is affected when several are attached.
+**Verified on zellij 0.45.1:** `focus-pane-id` also switches to the pane's tab, so no `go-to-tab` is needed. The pane id comes from the hook (`ZELLIJ_PANE_ID`) or, for sessions found via the registry, from the `claude` process's environment (`kern.procargs2` includes the environment). The daemon runs the **client's own zellij binary** (its executable path), because launchd agents have a minimal `PATH`; fallback: common install locations. Still open: which client is affected when several are attached (the daemon uses the first).
 
 #### Step 2a: Ghostty (AppleScript, Ghostty ≥ 1.3)
 
@@ -135,13 +135,15 @@ Then `focus` the terminal and **always** `activate` Ghostty explicitly (focus al
 
 #### Step 2b: Tabby (companion plugin)
 
-Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Tabby plugin** (`tabby-cyberviber`, in `tabby-plugin/`):
+Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Tabby plugin** (`tabby-cyberviber`, in `tabby-plugin/`, embedded in the binary and installed by `cyberviber install` to `~/Library/Application Support/tabby/plugins/node_modules/tabby-cyberviber`):
 
-- Listens on a Unix socket `~/.cyberviber/tabby.sock`.
-- `list` → all tabs (including panes inside split tabs) with their local shell PID and title.
-- `focus {pid}` → selects the tab (and split pane) whose shell PID is the tab root, then brings the Tabby window to the front.
-
-The daemon matches the tab root PID from step 0. Plugin APIs to verify: tab list + `selectTab` in the app service, the local session's real shell PID, focusing a pane in a split tab, raising the window.
+- Plain JavaScript, no build step: Tabby `require()`s user plugins and compiles Angular modules at runtime (builtin plugins use `__decorate` too). The module gets `AppService` and `HostWindowService` injected via `ctorParameters`.
+- One Unix socket per Tabby window: `~/.cyberviber/tabby/<renderer pid>.sock` (0600, dir 0700), removed on unload; the daemon removes sockets nobody listens on.
+- One newline-delimited JSON request per connection:
+  - `{"cmd":"focus","pids":[…]}` → selects the top-level tab (`AppService.selectTab`) and, for split tabs, the pane (`SplitTabComponent.focus`) whose shell PID (`session.pty.getTruePID()` / `getPID()`, private in the typings but present at runtime) is in `pids`, then `HostWindowService.bringToFront()`. Answer `{"ok":true,"index":3,"title":…}`.
+  - `{"cmd":"list"}` → all tabs/panes with title and shell PIDs (debugging).
+- The daemon sends the whole chain from anchor to tab root; afterwards it runs `open -a /Applications/Tabby.app` so the app is activated even when another app is frontmost.
+- Plugins load at Tabby startup: after installing, reload or restart Tabby once.
 
 Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only).
 
@@ -303,7 +305,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 1. **Design** — HTML mockups of all layouts and themes. ✅
 1b. **Browser simulator** — daemon serves the design page with live sessions via SSE. ✅
 2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
-3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij; test all four combinations.
+3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Implemented; zellij + Tabby chain verified up to the plugin; plugin and Ghostty pending live verification.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
 6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
@@ -313,7 +315,8 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 - zellij: minimum version, tab switching by `focus-pane-id`, behaviour with several attached clients, reliable client → session mapping.
 - Owner's zellij setup: installed version, and are sessions started as `zellij attach <name>` / `zellij -s <name>` (easy client → session mapping) or plain `zellij` (random names, needs the socket lookup)?
 - Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
-- Tabby plugin API: shell PID per tab, selecting panes in split tabs, raising the window.
+- Tabby plugin: confirm on a real Tabby reload that the module loads (Angular JIT with `ctorParameters`) and that `getTruePID()` matches the tab root.
+- Ghostty path is implemented and unit-tested, but Ghostty isn't installed on the dev machine: verify the AppleScript property names (`id`, `working directory`, `name`) and the title marker on a real Ghostty ≥ 1.3.
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched? (currently: decay after `idle_after`)

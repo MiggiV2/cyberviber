@@ -157,3 +157,13 @@ func TestShouldKeepFolderNameWhenRegistryHasNone(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestShouldTakeZellijInfoFromDiscovery(t *testing.T) {
+	s := newStore()
+	d := disc("idle", 0)
+	d.ZellijSession, d.ZellijPane = "sincere-drum", "11"
+	s.Sync([]Discovered{d})
+	if got := only(t, s); got.ZellijSession != "sincere-drum" || got.ZellijPane != "11" {
+		t.Fatalf("%+v", got)
+	}
+}

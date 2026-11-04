@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"cyberviber/internal/config"
+	"cyberviber/internal/focus"
 	"cyberviber/internal/gitinfo"
 	"cyberviber/internal/hook"
 	"cyberviber/internal/install"
@@ -106,6 +107,21 @@ func runDaemon(cfg config.Config) error {
 		return err
 	}
 	api := server.New(store, save)
+	focuser := &focus.Focuser{
+		Lookup:   store.Get,
+		Get:      proc.Get,
+		Env:      proc.Env,
+		Run:      func(name string, args ...string) ([]byte, error) { return exec.Command(name, args...).CombinedOutput() },
+		TabbyDir: focus.TabbyDir(),
+	}
+	api.Focus = func(id string) (bool, string) {
+		res := focuser.Focus(id)
+		log.Printf("focus %s: %+v", id, res)
+		if res.Terminal != "" && store.SetTerminal(id, res.Terminal, res.Tab) {
+			api.Notify()
+		}
+		return res.OK, res.Reason
+	}
 	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 2 * time.Second}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -150,8 +166,10 @@ func discover() []session.Discovered {
 		if err != nil || !p.IsClaude() && p.Name != "node" {
 			continue
 		}
+		env := proc.Env(e.PID)
 		out = append(out, session.Discovered{ID: e.SessionID, Cwd: e.Cwd, Name: e.Name, PID: e.PID, TTY: p.TTY,
-			Status: e.Status, StatusAt: e.StatusAt})
+			Status: e.Status, StatusAt: e.StatusAt,
+			ZellijSession: env["ZELLIJ_SESSION_NAME"], ZellijPane: env["ZELLIJ_PANE_ID"]})
 	}
 	return out
 }
@@ -228,6 +246,15 @@ func runInstall(args []string) error {
 	}
 	fmt.Println("hooks added to", p.settings)
 
+	if _, err := os.Stat("/Applications/Tabby.app"); err == nil {
+		dir, err := install.InstallTabbyPlugin(install.TabbyPluginsDir())
+		if err != nil {
+			return err
+		}
+		fmt.Println("tabby plugin installed:", dir)
+		fmt.Println("  → reload Tabby windows to load it (View → Reload, or restart Tabby)")
+	}
+
 	if !p.launchd {
 		return nil
 	}
@@ -239,7 +266,15 @@ func runInstall(args []string) error {
 	}
 	domain := fmt.Sprintf("gui/%d", os.Getuid())
 	_ = exec.Command("launchctl", "bootout", domain+"/"+install.Label).Run()
-	if out, err := exec.Command("launchctl", "bootstrap", domain, p.plist).CombinedOutput(); err != nil {
+	// bootout is asynchronous: bootstrap fails with EIO until the old agent is gone
+	var out []byte
+	for i := 0; i < 20; i++ {
+		if out, err = exec.Command("launchctl", "bootstrap", domain, p.plist).CombinedOutput(); err == nil {
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if err != nil {
 		return fmt.Errorf("launchctl bootstrap: %v: %s", err, out)
 	}
 	fmt.Println("launchd agent started:", p.plist)
@@ -256,6 +291,9 @@ func runUninstall(args []string) error {
 		return err
 	}
 	fmt.Println("hooks removed from", p.settings)
+	if err := install.RemoveTabbyPlugin(install.TabbyPluginsDir()); err != nil {
+		return err
+	}
 	if p.launchd {
 		_ = exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d/%s", os.Getuid(), install.Label)).Run()
 		if err := os.Remove(p.plist); err != nil && !errors.Is(err, os.ErrNotExist) {
