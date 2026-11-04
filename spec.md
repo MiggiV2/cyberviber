@@ -64,6 +64,15 @@ The daemon also:
 - marks a session `idle` after **10 min** (configurable) without events in state `ready`;
 - periodically checks that the `claude` process (PID) is still alive and drops dead sessions (crash, closed terminal without `SessionEnd`).
 
+**Second source: Claude Code's session registry.** Claude Code writes `~/.claude/sessions/<pid>.json` for each running interactive session (`pid`, `sessionId`, `cwd`, `kind`, `status`, `statusUpdatedAt`, …). The format is undocumented, so it is used best-effort; the `*.key` files next to it are never opened. Every 2 s the daemon:
+- adds sessions that have not fired a hook yet (e.g. sessions started before `install`, or waiting at the prompt): `busy` → `working`, otherwise `ready`;
+- applies a registry status that is newer than the session's last hook event: `busy` moves `ready`/`idle` to `working`, `idle` moves `working` to `ready` (fixes turns interrupted with Esc, where no `Stop` hook fires);
+- never sets or clears `input`, only hooks do.
+
+Observed status values: `busy`, `idle`, `shell` (meaning unclear, currently ignored for existing sessions).
+
+**Process identification:** the kernel process name (`p_comm`) of Claude Code is its version (e.g. `2.1.316`), because the binary lives at `~/.local/share/claude/versions/<version>`. `ps` shows `claude` because it prints `argv[0]`. The daemon therefore reads `argv[0]` and the executable path via `kern.procargs2`.
+
 Per session the daemon keeps:
 
 | Field | Source |
@@ -308,7 +317,8 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched? (currently: decay after `idle_after`)
-- Interrupting a turn with Esc: does any hook fire? If not, the session stays `working` until the next prompt; a transcript-mtime heuristic could fix that.
+- Interrupting a turn with Esc: handled via the registry status (see 3.1); verify on a real interrupt.
+- Registry status `shell`: what does it mean, and should it map to a state?
 - `install` rewrites `settings.json` via encoding/json, which sorts keys. A backup is written once (`settings.json.cyberviber-backup`); key order could be preserved later if it matters.
 
 ## 8. References

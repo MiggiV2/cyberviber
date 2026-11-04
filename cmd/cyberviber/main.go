@@ -26,6 +26,7 @@ import (
 	"cyberviber/internal/install"
 	"cyberviber/internal/proc"
 	"cyberviber/internal/protocol"
+	"cyberviber/internal/registry"
 	"cyberviber/internal/server"
 	"cyberviber/internal/session"
 )
@@ -98,6 +99,7 @@ func runDaemon(cfg config.Config) error {
 		}
 	}
 	store.Tick(time.Now(), proc.Alive)
+	store.Sync(discover())
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", cfg.Port))
 	if err != nil {
@@ -109,14 +111,15 @@ func runDaemon(cfg config.Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go func() {
-		t := time.NewTicker(5 * time.Second)
+		t := time.NewTicker(2 * time.Second)
 		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case now := <-t.C:
-				if store.Tick(now, proc.Alive) {
+				synced := store.Sync(discover())
+				if store.Tick(now, proc.Alive) || synced {
 					save()
 					api.Notify()
 				}
@@ -136,6 +139,21 @@ func runDaemon(cfg config.Config) error {
 	}
 	save()
 	return nil
+}
+
+// discover lists live sessions from Claude Code's session registry. Entries whose PID is gone
+// or now belongs to another program are skipped.
+func discover() []session.Discovered {
+	var out []session.Discovered
+	for _, e := range registry.Read(registry.DefaultDir()) {
+		p, err := proc.Get(e.PID)
+		if err != nil || !p.IsClaude() && p.Name != "node" {
+			continue
+		}
+		out = append(out, session.Discovered{ID: e.SessionID, Cwd: e.Cwd, PID: e.PID, TTY: p.TTY,
+			Status: e.Status, StatusAt: e.StatusAt})
+	}
+	return out
 }
 
 func runStatus(cfg config.Config) error {
@@ -175,7 +193,7 @@ func elapsed(sec int64) string {
 
 type installPaths struct {
 	settings, plist, log string
-	launchd             bool
+	launchd              bool
 }
 
 func parseInstallFlags(name string, args []string) (installPaths, error) {
