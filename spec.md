@@ -144,6 +144,7 @@ Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Ta
   - `{"cmd":"list"}` → all tabs/panes with title and shell PIDs (debugging).
 - The daemon sends the whole chain from anchor to tab root; afterwards it runs `open -a /Applications/Tabby.app` so the app is activated even when another app is frontmost.
 - Plugins load at Tabby startup: after installing, reload or restart Tabby once.
+- **Verified** on Tabby 1.0.238 + zellij 0.45.1: the module loads, the shell PID matches the tab root, and a tap selects the right tab and pane.
 
 Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only).
 
@@ -305,7 +306,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 1. **Design** — HTML mockups of all layouts and themes. ✅
 1b. **Browser simulator** — daemon serves the design page with live sessions via SSE. ✅
 2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
-3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Implemented; zellij + Tabby chain verified up to the plugin; plugin and Ghostty pending live verification.
+3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Tabby + zellij verified end to end; Tabby without zellij and Ghostty (both modes) pending live verification.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
 6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
@@ -315,7 +316,6 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 - zellij: minimum version, tab switching by `focus-pane-id`, behaviour with several attached clients, reliable client → session mapping.
 - Owner's zellij setup: installed version, and are sessions started as `zellij attach <name>` / `zellij -s <name>` (easy client → session mapping) or plain `zellij` (random names, needs the socket lookup)?
 - Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
-- Tabby plugin: confirm on a real Tabby reload that the module loads (Angular JIT with `ctorParameters`) and that `getTruePID()` matches the tab root.
 - Ghostty path is implemented and unit-tested, but Ghostty isn't installed on the dev machine: verify the AppleScript property names (`id`, `working directory`, `name`) and the title marker on a real Ghostty ≥ 1.3.
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
