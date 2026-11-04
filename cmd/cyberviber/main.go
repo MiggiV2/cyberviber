@@ -20,17 +20,20 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"cyberviber/internal/config"
-	"cyberviber/internal/focus"
-	"cyberviber/internal/gitinfo"
-	"cyberviber/internal/hook"
-	"cyberviber/internal/install"
-	"cyberviber/internal/proc"
-	"cyberviber/internal/protocol"
-	"cyberviber/internal/registry"
-	"cyberviber/internal/server"
-	"cyberviber/internal/session"
+	"github.com/d135-1r43/cyberviber/internal/config"
+	"github.com/d135-1r43/cyberviber/internal/focus"
+	"github.com/d135-1r43/cyberviber/internal/gitinfo"
+	"github.com/d135-1r43/cyberviber/internal/hook"
+	"github.com/d135-1r43/cyberviber/internal/install"
+	"github.com/d135-1r43/cyberviber/internal/proc"
+	"github.com/d135-1r43/cyberviber/internal/protocol"
+	"github.com/d135-1r43/cyberviber/internal/registry"
+	"github.com/d135-1r43/cyberviber/internal/server"
+	"github.com/d135-1r43/cyberviber/internal/session"
 )
+
+// version is set at build time (-ldflags "-X main.version=…").
+var version = "dev"
 
 const usage = `cyberviber — Claude Code session manager
 
@@ -40,6 +43,7 @@ usage:
   cyberviber sim          open the browser simulator (daemon must be running)
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
   cyberviber uninstall    remove hooks and the launchd agent
+  cyberviber version      print the version
   cyberviber hook         (called by Claude Code) forward a hook event to the daemon
 `
 
@@ -57,6 +61,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "version", "--version", "-v":
+		fmt.Println("cyberviber", version)
 	case "hook":
 		runHook(cfg)
 	case "daemon":

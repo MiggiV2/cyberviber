@@ -1,4 +1,4 @@
-module cyberviber
+module github.com/d135-1r43/cyberviber
 
 go 1.27.3
 

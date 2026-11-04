@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"cyberviber/internal/event"
-	"cyberviber/internal/proc"
+	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/proc"
 )
 
 func TestShouldEnrichPreToolUse(t *testing.T) {

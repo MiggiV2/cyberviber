@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
-	"cyberviber/internal/proc"
-	"cyberviber/internal/session"
+	"github.com/d135-1r43/cyberviber/internal/proc"
+	"github.com/d135-1r43/cyberviber/internal/session"
 )
 
 // Result of a focus request. Reason is set when OK is false.

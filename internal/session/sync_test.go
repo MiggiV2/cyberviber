@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/event"
 )
 
 func disc(status string, at time.Duration) Discovered {

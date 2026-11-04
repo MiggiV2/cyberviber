@@ -1,7 +1,7 @@
 // Package protocol defines the JSON messages between daemon and device (one message per line).
 package protocol
 
-import "cyberviber/internal/session"
+import "github.com/d135-1r43/cyberviber/internal/session"
 
 type Session struct {
 	ID       string `json:"id"`

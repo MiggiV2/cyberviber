@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tabbyplugin "cyberviber/tabby-plugin"
+	tabbyplugin "github.com/d135-1r43/cyberviber/tabby-plugin"
 )
 
 const tabbyPluginName = "tabby-cyberviber"

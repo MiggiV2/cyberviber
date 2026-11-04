@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/event"
 )
 
 var t0 = time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)

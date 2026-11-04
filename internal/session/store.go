@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/event"
 )
 
 type State string

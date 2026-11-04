@@ -1,0 +1,71 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build darwin/arm64, darwin/amd64 and a universal binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]] || VERSION="${GITHUB_SHA::7}"
+          LDFLAGS="-s -w -X main.version=${VERSION}"
+          mkdir -p dist/arm64 dist/amd64 dist/universal
+          GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o dist/arm64/cyberviber ./cmd/cyberviber
+          GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/amd64/cyberviber ./cmd/cyberviber
+          lipo -create -output dist/universal/cyberviber dist/arm64/cyberviber dist/amd64/cyberviber
+          lipo -info dist/universal/cyberviber
+          dist/arm64/cyberviber version
+          for a in arm64 amd64 universal; do
+            tar -C "dist/$a" -czf "cyberviber-darwin-$a.tar.gz" cyberviber
+          done
+          shasum -a 256 cyberviber-darwin-*.tar.gz > checksums.txt
+          cat checksums.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyberviber-darwin
+          path: |
+            cyberviber-darwin-*.tar.gz
+            checksums.txt
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cyberviber-darwin
+          path: dist
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes

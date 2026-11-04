@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"cyberviber/internal/event"
-	"cyberviber/internal/protocol"
-	"cyberviber/internal/session"
+	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/protocol"
+	"github.com/d135-1r43/cyberviber/internal/session"
 )
 
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {

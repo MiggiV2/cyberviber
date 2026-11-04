@@ -5,7 +5,7 @@ package focus
 import (
 	"strings"
 
-	"cyberviber/internal/proc"
+	"github.com/d135-1r43/cyberviber/internal/proc"
 )
 
 // Terminal is the terminal app hosting an anchor process.
