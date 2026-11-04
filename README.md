@@ -39,6 +39,20 @@ go test ./...
 go build ./cmd/cyberviber
 ```
 
+## Continue on another Mac
+
+```sh
+git clone git@github.com:d135-1r43/cyberviber.git && cd cyberviber
+go test ./...
+go install ./cmd/cyberviber && ~/go/bin/cyberviber install   # hooks, daemon, Tabby plugin
+# reload/restart Tabby once, then:
+~/go/bin/cyberviber sim                                      # http://127.0.0.1:7337/
+```
+
+On the old Mac, run `~/go/bin/cyberviber uninstall` if it should stop reporting.
+
+Next steps (spec §6): USB serial link in the daemon (milestone 4, Mac side), then the ESP32 firmware in `firmware/` (PlatformIO + LVGL). Open questions are in spec §7. The board's touch controller (XPT2046 vs CST820) still has to be identified.
+
 ## License
 
 MIT
