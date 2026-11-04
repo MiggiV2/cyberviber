@@ -39,7 +39,7 @@ Non-goals (for now): typing into sessions from the device, answering permission 
 
 Two components:
 
-1. **`cyberviberd`** — a small daemon on the Mac (launchd agent). It is the source of truth for sessions, serves the device and performs the "jump".
+1. **`cyberviberd`** — a small daemon on the Mac (launchd agent), written in **Go**. It is the source of truth for sessions, serves the device and performs the "jump".
 2. **Firmware** — ESP32 + LVGL client, connected and powered via USB. Stateless display: renders what the daemon sends and reports taps.
 
 ### 3.1 Session detection (Mac)
@@ -179,6 +179,26 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 - Blinking and spinner via `lv_timer`.
 - Minimum touch target: 22 px (btop); prefer ≥ 26 px.
 
+### 3.4 Daemon implementation (Go)
+
+- Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
+- The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds terminal info (`TERM_PROGRAM`, TTY, `ITERM_SESSION_ID`, `TMUX_PANE`, parent PID) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
+- Serial: `go.bug.st/serial` (port enumeration with USB VID/PID, DTR/RTS control).
+- Config: TOML (`github.com/BurntSushi/toml`). Otherwise the standard library only (`net/http`, `encoding/json`, `os/exec` for `osascript`, `git`, `tmux`).
+- Built with `go build`, no CGO; installed via `go install` or a release binary for darwin/arm64 + amd64.
+- Suggested layout:
+
+```
+cmd/cyberviber/      main + subcommands
+internal/session/    session store, state machine, idle/liveness checks
+internal/hook/       hook payload parsing, terminal info
+internal/serial/     port discovery, line framing, reconnect
+internal/focus/      per-terminal focus strategies (iTerm2, Terminal, Ghostty, tmux)
+internal/install/    settings.json hook entries, launchd plist
+firmware/            PlatformIO project for the ESP32
+design/              HTML mockups
+```
+
 ## 5. Configuration
 
 Mac (`~/.config/cyberviber/config.toml`):
@@ -195,7 +215,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 ## 6. Milestones
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
-2. **Daemon** — hooks + session store + `GET /sessions` JSON; verify states against real sessions.
+2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status`; verify states against real sessions.
 3. **Jump** — focus logic for iTerm2, Terminal.app, Ghostty (+ tmux).
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
@@ -203,7 +223,6 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 
 ## 7. Open questions
 
-- Daemon language: Go or Swift (single binary, easy launchd) vs. Node/Python (quick)?
 - Ghostty: which reliable way exists to focus a specific tab/window?
 - Exact touch controller on this board variant.
 - Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
