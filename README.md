@@ -9,6 +9,7 @@ go test ./...
 go install ./cmd/cyberviber      # → ~/go/bin/cyberviber
 cyberviber install               # hooks in ~/.claude/settings.json + launchd agent
 cyberviber status
+cyberviber sim                   # browser simulator with live sessions (http://127.0.0.1:7337/)
 cyberviber uninstall
 ```
 

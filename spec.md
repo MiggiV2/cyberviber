@@ -183,7 +183,7 @@ Daemon → device after a focus: `{ "type": "focused", "id": "a1b2", "ok": true 
 
 ### 3.4 Daemon implementation (Go)
 
-- Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
+- Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `sim` (opens the browser simulator), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
 - The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds process info (`claude` PID, TTY, `ZELLIJ_SESSION_NAME`, `ZELLIJ_PANE_ID`) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
 - Serial: `go.bug.st/serial` (port enumeration with USB VID/PID, DTR/RTS control).
 - Config: TOML (`github.com/BurntSushi/toml`). Otherwise the standard library only (`net/http`, `encoding/json`, `os/exec` for `osascript`, `git`, `zellij`, `ps`/`lsof`; process tree via `sysctl kern.proc` where possible).
@@ -202,6 +202,22 @@ tabby-plugin/        Tabby plugin (TypeScript) exposing tab focus over a Unix so
 firmware/            PlatformIO project for the ESP32
 design/              HTML mockups
 ```
+
+### 3.5 Local HTTP API and browser simulator
+
+The daemon listens on `127.0.0.1:<port>` only:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /event` | hook events from `cyberviber hook` |
+| `GET /sessions` | current list as a `sessions` message (same JSON the device gets) |
+| `GET /stream` | server-sent events: a `sessions` message on connect and after every change |
+| `POST /focus` | `{"id": …}` → `focused` answer (same as the device's tap); `not-implemented` until milestone 3 |
+| `GET /` | the **browser simulator**: `design/index.html`, embedded in the binary |
+
+The simulator is the design page in live mode: all five layouts and all themes render the real sessions, and a tap calls `/focus`, exactly like the device. Opened as a plain file it falls back to demo data. All strings from the daemon are HTML-escaped (activity text contains commands and prompts).
+
+Every request must have a loopback `Host` (`127.0.0.1`, `localhost`, `::1`) against DNS rebinding, and if it carries an `Origin` header that origin must match the host, so other websites can't post events or trigger focus. Hook calls send no `Origin`.
 
 ## 4. UI
 
@@ -276,6 +292,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 ## 6. Milestones
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
+1b. **Browser simulator** — daemon serves the design page with live sessions via SSE. ✅
 2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
 3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij; test all four combinations.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).

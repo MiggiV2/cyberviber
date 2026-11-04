@@ -32,3 +32,17 @@ func FromSessions(now int64, list []session.Session) Sessions {
 	}
 	return out
 }
+
+// Focus is sent by the device (or simulator) when a session is tapped.
+type Focus struct {
+	Type string `json:"type,omitempty"`
+	ID   string `json:"id"`
+}
+
+// Focused answers a Focus request.
+type Focused struct {
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	OK     bool   `json:"ok"`
+	Reason string `json:"reason,omitempty"`
+}

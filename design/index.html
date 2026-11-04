@@ -160,13 +160,14 @@ footer.notes b{color:var(--fg)}
   <header>
     <div>
       <h1><span class="acc">›</span> cyberviber</h1>
-      <p class="sub">Claude Code session manager for the 2.4" ESP32 touch display. Five layout directions, each rendered at the real 240×320 resolution. Tap any session to simulate the jump to its terminal. Switch Omarchy themes to see the palette carry through.</p>
+      <p class="sub">Claude Code session manager for the 2.4" ESP32 touch display. Five layout directions, each rendered at the real 240×320 resolution. Served by the daemon (<b>cyberviber sim</b>) it shows your live sessions and tapping one asks the daemon to jump to its terminal; opened as a file it runs on demo data.</p>
     </div>
     <div class="ctl">
       <div class="row"><span class="lbl">theme</span><span class="row" id="themes"></span></div>
-      <div class="row"><span class="lbl">sessions</span><span class="row" id="counts"></span>
-        <span class="lbl" style="width:auto;margin-left:14px">zoom</span><span class="row" id="zooms"></span>
-        <button class="chip" id="shuffle" style="margin-left:14px">↻ shuffle states</button></div>
+      <div class="row"><span class="lbl">source</span><span class="row" id="srcs"></span><span id="conn" class="mut" style="font-size:11px;margin-left:8px"></span></div>
+      <div class="row"><span id="demoCtl" class="row"><span class="lbl">sessions</span><span class="row" id="counts"></span>
+        <button class="chip" id="shuffle" style="margin:0 14px 0 8px">↻ shuffle states</button></span>
+        <span class="lbl" style="width:auto">zoom</span><span class="row" id="zooms"></span></div>
     </div>
   </header>
 
@@ -225,12 +226,28 @@ const ST = {
 const ORDER = {input:0,done:1,working:2,idle:3};
 const SPIN = ['·','✢','✳','✶','✻','✽','✻','✶','✳','✢'];
 
-let cur = {theme:'tokyo-night',count:6,zoom:1.5,focus:null};
+const LIVE_OK = location.protocol.startsWith('http');
+let cur = {theme:'tokyo-night',count:6,zoom:1.5,focus:null,src:LIVE_OK?'live':'demo'};
 try{ Object.assign(cur, JSON.parse(localStorage.getItem('cv-design')||'{}')) }catch(e){}
+if(!LIVE_OK) cur.src = 'demo';
+const live = {list:[], connected:false};
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FROM_WIRE = {input:'input', ready:'done', working:'working', idle:'idle'};
+// daemon message → page model; every string is escaped because it ends up in innerHTML
+function fromWire(m){
+  const off = Date.now() - m.now*1000; // correct for clock differences
+  return (m.sessions||[]).map(s => ({
+    id:esc(s.id), name:esc(s.name), branch:esc(s.branch), term:esc(s.terminal), tab:+s.tab||0,
+    zj:esc(s.zellij), state:FROM_WIRE[s.state]||'idle', act:esc(s.activity), t0:s.since*1000+off, ctx:+s.ctx||0,
+  }));
+}
+const where = s => [s.term, s.zj ? `zellij ${s.zj}` : (s.tab ? `tab ${s.tab}` : '')].filter(Boolean).join(' · ') || 'terminal';
+const source = () => cur.src==='live' ? live.list : ALL.slice(0,cur.count);
 
 const G = s => s.state==='working' ? '<span class="spin">✻</span>' : ST[s.state].g;
 const T = s => `<span class="t" data-id="${s.id}"></span>`;
-const list = () => ALL.slice(0,cur.count).sort((a,b)=>ORDER[a.state]-ORDER[b.state]||b.t0-a.t0);
+const list = () => source().slice().sort((a,b)=>ORDER[a.state]-ORDER[b.state]||b.t0-a.t0);
 const counts = L => L.reduce((c,s)=>(c[s.state]++,c),{input:0,done:0,working:0,idle:0});
 const empty = `<div class="empty"><div class="big"><span class="spin">✻</span></div><div class="h">no claude running</div><div>start one with <b>claude</b> in any terminal</div></div>`;
 const fmt = sec => sec<60?`${sec}s`: sec<3600?`${Math.floor(sec/60)}m${String(sec%60).padStart(2,'0')}`:`${Math.floor(sec/3600)}h${String(Math.floor(sec%3600/60)).padStart(2,'0')}`;
@@ -279,7 +296,7 @@ function rTiling(L){
       <div class="tl-h"><span class="nm ell">${s.name}</span><span class="mut">${T(s)}</span></div>
       <div class="tl-mid c-${s.state}"><span class="tl-g">${G(s)}</span><span class="tl-lab">${ST[s.state].label}</span></div>
       <div class="tl-act">${s.act}</div>
-      <div class="tl-f ell">${s.term}:${s.tab} · ${s.branch}</div>
+      <div class="tl-f ell">${where(s)} · ${s.branch}</div>
     </div>`).join('')}
   </div>${n?'':empty}`;
 }
@@ -324,7 +341,7 @@ function rWalker(L){
       <div class="wk-it tap ${i===0?'sel':''}" data-id="${s.id}">
         <div class="wk-ic bd-${s.state} c-${s.state}">${G(s)}</div>
         <div class="wk-tx"><div class="nm ell">${s.name}</div><div class="act ell ${s.state==='input'?'c-input':''}">${s.act}</div></div>
-        <div class="wk-rt"><span class="mut">tab ${s.tab}</span><span class="mut">${T(s)}</span></div>
+        <div class="wk-rt"><span class="mut ell" style="max-width:56px">${s.zj?`zj:${s.zj}`:s.tab?`tab ${s.tab}`:(s.term||'')}</span><span class="mut">${T(s)}</span></div>
       </div>`).join('')}
       ${L.length?'':'<div class="mut" style="padding:40px 10px;text-align:center;font-size:11px">no results</div>'}
     </div>
@@ -354,7 +371,7 @@ function rLock(L){
       <div class="lk-lab c-${top.state}"><span><span class="${top.state==='input'?'blink':''}">●</span> ${top.state==='input'?'NEEDS YOU':'YOUR TURN'}</span><span class="mut">1/${nIn}</span></div>
       <div class="lk-name ell">${top.name}</div>
       <div class="lk-act">${top.act}</div>
-      <div class="lk-meta mut">${top.term} · tab ${top.tab} · ${T(top)}</div>
+      <div class="lk-meta mut">${where(top)} · ${T(top)}</div>
       <div class="lk-btn ${top.state}">tap to jump ⟶</div>
     </div>
     <div class="lk-o">${chipHTML}</div>`;
@@ -375,7 +392,7 @@ const DESIGNS = [
 
 /* ---------------- app ---------------- */
 const $ = id => document.getElementById(id);
-function save(){ try{ localStorage.setItem('cv-design', JSON.stringify({theme:cur.theme,count:cur.count,zoom:cur.zoom})) }catch(e){} }
+function save(){ try{ localStorage.setItem('cv-design', JSON.stringify({theme:cur.theme,count:cur.count,zoom:cur.zoom,src:cur.src})) }catch(e){} }
 
 function applyTheme(){
   const t = THEMES[cur.theme] || THEMES['tokyo-night'];
@@ -386,6 +403,9 @@ function controls(){
   $('themes').innerHTML = Object.entries(THEMES).map(([k,t])=>
     `<button class="chip ${k===cur.theme?'on':''}" data-theme="${k}"><span class="sw"><i style="background:${t.bg}"></i><i style="background:${t.accent}"></i><i style="background:${t.red}"></i><i style="background:${t.green}"></i></span>${t.name}</button>`).join('');
   $('counts').innerHTML = [0,1,3,6,9].map(n=>`<button class="chip ${n===cur.count?'on':''}" data-count="${n}">${n}</button>`).join('');
+  $('srcs').innerHTML = [['live','● live'],['demo','demo data']].map(([k,l])=>
+    `<button class="chip ${k===cur.src?'on':''}" data-src="${k}" ${k==='live'&&!LIVE_OK?'disabled style="opacity:.4;cursor:not-allowed"':''}>${l}</button>`).join('');
+  $('demoCtl').style.display = cur.src==='demo' ? '' : 'none';
   $('zooms').innerHTML = [1,1.5,2].map(z=>`<button class="chip ${z===cur.zoom?'on':''}" data-zoom="${z}">${z}×</button>`).join('');
 }
 function render(){
@@ -396,12 +416,32 @@ function render(){
       <div class="bezel"><div class="scr ${d.cls}" data-design="${d.id}">${d.render(L)}</div></div>
       <div class="note"><h3><span>${d.tag}</span> · ${d.title}</h3><p>${d.desc}</p></div>
     </div>`).join('');
-  tick(); spin();
+  tick(); spin(); status();
+}
+function status(){
+  $('conn').innerHTML = !LIVE_OK ? 'run <b>cyberviber sim</b> for live data'
+    : live.connected ? `<span class="c-done">●</span> daemon connected · ${live.list.length} session${live.list.length===1?'':'s'}`
+    : `<span class="c-input">●</span> daemon offline, retrying…`;
+}
+function connect(){
+  const es = new EventSource('/stream');
+  es.onopen = () => { live.connected = true; status(); };
+  es.onmessage = e => {
+    live.list = fromWire(JSON.parse(e.data)); live.connected = true;
+    if(cur.src==='live') render(); else status();
+  };
+  es.onerror = () => { live.connected = false; status(); }; // EventSource reconnects by itself
+}
+function toast(scr, html){
+  scr.querySelector('.toast')?.remove();
+  const el = document.createElement('div');
+  el.className = 'toast'; el.innerHTML = html;
+  scr.appendChild(el); setTimeout(()=>el.remove(),1600);
 }
 function tick(){
   const n = Date.now();
   document.querySelectorAll('.t[data-id]').forEach(el=>{
-    const s = ALL.find(x=>x.id==el.dataset.id); el.textContent = fmt(Math.floor((n-s.t0)/1000));
+    const s = source().find(x=>x.id==el.dataset.id); if(s) el.textContent = fmt(Math.max(0,Math.floor((n-s.t0)/1000)));
   });
   document.querySelectorAll('.clk').forEach(el=>el.textContent = clock());
 }
@@ -411,11 +451,12 @@ setInterval(()=>{f++;spin()},120);
 setInterval(tick,1000);
 
 document.addEventListener('click', e=>{
-  const b = e.target.closest('[data-theme],[data-count],[data-zoom]');
+  const b = e.target.closest('[data-theme],[data-count],[data-zoom],[data-src]');
   if(b){
     if(b.dataset.theme) cur.theme = b.dataset.theme;
     if(b.dataset.count) cur.count = +b.dataset.count;
     if(b.dataset.zoom) cur.zoom = +b.dataset.zoom;
+    if(b.dataset.src && !b.disabled) cur.src = b.dataset.src;
     save(); render(); return;
   }
   if(e.target.closest('#shuffle')){
@@ -427,17 +468,23 @@ document.addEventListener('click', e=>{
   }
   const t = e.target.closest('.scr .tap');
   if(!t) return;
-  const s = ALL.find(x=>x.id==t.dataset.id), scr = t.closest('.scr');
+  const s = source().find(x=>x.id==t.dataset.id), scr = t.closest('.scr');
+  if(!s) return;
   t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
-  scr.querySelector('.toast')?.remove();
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.innerHTML = `<b>⟶ ${s.term} · ${s.zj?`zellij ${s.zj}`:`tab ${s.tab}`}</b><br><span class="mut">focusing ${s.name}</span>`;
-  scr.appendChild(el); setTimeout(()=>el.remove(),1600);
+  if(cur.src==='live'){
+    fetch('/focus', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:t.dataset.id})})
+      .then(r => r.json())
+      .then(r => toast(scr, r.ok ? `<b>⟶ ${where(s)}</b><br><span class="mut">focused ${s.name}</span>`
+                                 : `<b class="c-input">✗ ${esc(r.reason||'failed')}</b><br><span class="mut">${s.name} · ${where(s)}</span>`))
+      .catch(() => toast(scr, `<b class="c-input">✗ daemon offline</b>`));
+  } else {
+    toast(scr, `<b>⟶ ${where(s)}</b><br><span class="mut">focusing ${s.name}</span>`);
+  }
   if(scr.dataset.design==='tl'){ cur.focus = s.id; scr.querySelectorAll('.tile').forEach(x=>x.classList.toggle('focus', x.dataset.id==s.id)); }
 });
 
 render();
+if(LIVE_OK) connect();
 </script>
 </body>
 </html>

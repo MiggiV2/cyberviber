@@ -35,6 +35,7 @@ const usage = `cyberviber — Claude Code session manager
 usage:
   cyberviber daemon       run the daemon (started by launchd after install)
   cyberviber status       list sessions known to the daemon
+  cyberviber sim          open the browser simulator (daemon must be running)
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
   cyberviber uninstall    remove hooks and the launchd agent
   cyberviber hook         (called by Claude Code) forward a hook event to the daemon
@@ -60,6 +61,8 @@ func main() {
 		err = runDaemon(cfg)
 	case "status":
 		err = runStatus(cfg)
+	case "sim":
+		err = exec.Command("open", fmt.Sprintf("http://127.0.0.1:%d/", cfg.Port)).Run()
 	case "install":
 		err = runInstall(os.Args[2:])
 	case "uninstall":
@@ -100,7 +103,8 @@ func runDaemon(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: server.New(store, save).Handler(), ReadHeaderTimeout: 2 * time.Second}
+	api := server.New(store, save)
+	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 2 * time.Second}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -114,6 +118,7 @@ func runDaemon(cfg config.Config) error {
 			case now := <-t.C:
 				if store.Tick(now, proc.Alive) {
 					save()
+					api.Notify()
 				}
 			}
 		}
@@ -125,7 +130,7 @@ func runDaemon(cfg config.Config) error {
 		srv.Shutdown(sctx)
 	}()
 
-	log.Printf("cyberviber daemon listening on %s", ln.Addr())
+	log.Printf("cyberviber daemon listening on %s — simulator: http://%s/", ln.Addr(), ln.Addr())
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
