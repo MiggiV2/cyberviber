@@ -11,7 +11,7 @@ Visual design: [`design/index.html`](design/index.html) (open in a browser).
 - Tap a session → its terminal window/tab is focused on the Mac.
 - Look like it belongs on an Omarchy desktop: user picks the **layout** and the **theme**.
 
-Non-goals (for now): typing into sessions from the device, answering permission prompts remotely, multiple Macs, sessions on remote machines.
+Non-goals (for now): typing into sessions from the device, answering permission prompts remotely, multiple Macs, sessions on remote machines, wireless operation (Wi-Fi/BLE are a possible later extension; the JSON protocol is transport-independent).
 
 ## 2. Hardware
 
@@ -22,23 +22,25 @@ Non-goals (for now): typing into sessions from the device, answering permission 
 | Touch | Touch controller on the board (variant-dependent: XPT2046 resistive or CST820 capacitive — confirm on the unit) |
 | UI library | LVGL 9 |
 | Orientation | Portrait, 240×320 |
+| Connection | USB (power + serial data to the Mac). Onboard Wi-Fi/BLE unused for now |
 
 ## 3. Architecture
 
 ```
-┌──────────── Mac ────────────┐            ┌──── ESP32 ────┐
-│ Claude Code ── hooks ──┐    │   Wi-Fi    │               │
-│ Claude Code ── hooks ──┼──▶ cyberviberd ◀═══ WebSocket ══▶│ LVGL UI       │
-│ Claude Code ── hooks ──┘    │  (JSON)    │ layouts/themes│
-│        ▲                    │            └───────────────┘
-│        └── focus terminal (AppleScript / CLI)
-└─────────────────────────────┘
+┌─────────────────── Mac ───────────────────┐        ┌───── ESP32 ─────┐
+│                                           │  USB   │                 │
+│  Claude Code ─ hooks ─┐                   │ serial │  LVGL UI        │
+│  Claude Code ─ hooks ─┼─▶  cyberviberd  ◀═╪════════╪═▶ layouts       │
+│  Claude Code ─ hooks ─┘         │         │ JSON + │    themes       │
+│                                 ▼         │ power  │                 │
+│        focus terminal (AppleScript / CLI) │        │                 │
+└───────────────────────────────────────────┘        └─────────────────┘
 ```
 
 Two components:
 
 1. **`cyberviberd`** — a small daemon on the Mac (launchd agent). It is the source of truth for sessions, serves the device and performs the "jump".
-2. **Firmware** — ESP32 + LVGL client. Stateless display: renders what the daemon sends and reports taps.
+2. **Firmware** — ESP32 + LVGL client, connected and powered via USB. Stateless display: renders what the daemon sends and reports taps.
 
 ### 3.1 Session detection (Mac)
 
@@ -85,11 +87,19 @@ On a tap the device sends the session id; the daemon focuses the matching window
 
 macOS will ask once for Automation/Accessibility permission for the daemon.
 
-### 3.3 Transport (Mac ↔ device)
+### 3.3 Transport (Mac ↔ device): USB serial
 
-- Wi-Fi, same LAN. The daemon advertises itself via Bonjour/mDNS as `_cyberviber._tcp`; the device discovers it (manual host/port as fallback).
-- One WebSocket connection, JSON messages. The daemon pushes the full session list on every change (lists are tiny, no diffing needed).
-- Optional shared token configured on both sides; the daemon binds to the LAN interface only.
+The board is plugged into the Mac anyway for power, so the same cable carries the data. No Wi-Fi, no pairing, no network setup.
+
+- The board's USB-UART bridge (CH340 or CP210x) appears as `/dev/cu.usbserial-*`, `/dev/cu.wchusbserial-*` or `/dev/cu.SLAB_USBtoUART`.
+- **Framing:** newline-delimited JSON (one message per line, UTF-8), **115200 baud** 8N1. Lines that don't parse as JSON are ignored on both sides (ESP32 boot ROM and log output share UART0).
+- **Discovery:** the daemon scans matching ports, opens each one and waits for a `hello` from the firmware. The first port that answers is the device. It rescans on unplug and reconnects automatically.
+- **Auto-reset:** opening the port toggles DTR/RTS, which resets the ESP32 on this board. The daemon opens the port with DTR/RTS held inactive; if the board resets anyway, it just sends `hello` again after boot and receives the full state.
+- **Liveness:** the daemon sends the full session list on every change and at least every 5 s. If the device hears nothing for 15 s it shows "waiting for Mac…".
+- **Firmware logging:** off by default in release builds, so the line stream stays clean.
+- **Flashing:** the daemon holds the serial port open. `cyberviber release` (or stopping the launchd agent) frees it for `pio run -t upload`; the daemon reattaches afterwards.
+
+The session lists are tiny (< 2 KB for 9 sessions), so 115200 baud is plenty; the full list is sent each time, no diffing.
 
 Daemon → device:
 
@@ -107,7 +117,7 @@ Device → daemon:
 
 ```json
 { "type": "focus", "id": "a1b2" }
-{ "type": "hello", "fw": "0.1.0", "layout": "tiling", "theme": "tokyo-night" }
+{ "type": "hello", "device": "cyberviber", "fw": "0.1.0", "layout": "tiling", "theme": "tokyo-night" }
 ```
 
 Daemon → device after a focus: `{ "type": "focused", "id": "a1b2", "ok": true }` (device shows the toast; on `ok:false` a short error toast).
@@ -159,7 +169,7 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 ### 4.5 Interaction
 
 - Tap a session (row, tile, card, chip, waybar number) → `focus` message, the item flashes in `accent`, a mako-style toast shows `⟶ Ghostty · tab 6` for ~1.5 s.
-- Connection states: "searching for cyberviberd…" and "disconnected" screens in the current theme.
+- Connection state: a "waiting for Mac…" screen in the current theme until the first message arrives, and again after 15 s of silence.
 - Backlight dims after N minutes without changes; any `input` state wakes it.
 
 ### 4.6 Rendering constraints (LVGL)
@@ -174,21 +184,22 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 Mac (`~/.config/cyberviber/config.toml`):
 
 ```toml
-port = 7337
-token = ""            # optional shared secret
+port = 7337           # localhost only, receives hook events
 idle_after = "10m"
+serial = "auto"       # or an explicit path like /dev/cu.usbserial-1410
+baud = 115200
 ```
 
-Device: Wi-Fi credentials via captive-portal provisioning on first boot (e.g. WiFiManager), daemon host override, layout, theme, brightness.
+Device (stored in NVS): layout, theme, brightness. Nothing to set up on first boot: plug it in and it works.
 
 ## 6. Milestones
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
 2. **Daemon** — hooks + session store + `GET /sessions` JSON; verify states against real sessions.
 3. **Jump** — focus logic for iTerm2, Terminal.app, Ghostty (+ tmux).
-4. **Firmware skeleton** — display + touch + LVGL, Wi-Fi provisioning, WebSocket client, one layout (`waybar`).
+4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`).
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch.
-6. **Polish** — mDNS discovery, backlight handling, installer (`cyberviber install` writes hooks + launchd plist).
+6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
 
 ## 7. Open questions
 
