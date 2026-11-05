@@ -56,6 +56,7 @@ usage:
   cyberviber uninstall    remove hooks and the launchd agent
   cyberviber version      print the version
   cyberviber hook         (called by Claude Code) forward a hook event to the daemon
+  cyberviber statusline   (called by Claude Code) report context usage to the daemon
 `
 
 func main() {
@@ -64,7 +65,7 @@ func main() {
 		os.Exit(2)
 	}
 	cfg, err := config.Load(config.DefaultPath())
-	if err != nil && os.Args[1] != "hook" {
+	if err != nil && os.Args[1] != "hook" && os.Args[1] != "statusline" {
 		log.Fatal(err)
 	}
 	if p, err := strconv.Atoi(os.Getenv("CYBERVIBER_PORT")); err == nil {
@@ -76,6 +77,8 @@ func main() {
 		fmt.Println("cyberviber", version)
 	case "hook":
 		runHook(cfg)
+	case "statusline":
+		runStatusLine(cfg)
 	case "daemon":
 		err = runDaemon(cfg)
 	case "status":
@@ -115,6 +118,14 @@ func runHook(cfg config.Config) {
 		return
 	}
 	_ = hook.Send(cfg.Port, e)
+}
+
+// runStatusLine is Claude Code's status line command: it reports the session's context
+// usage to the daemon and prints nothing, so the status line stays empty.
+func runStatusLine(cfg config.Config) {
+	if id, pct, ok := hook.ParseStatus(os.Stdin); ok {
+		_ = hook.SendCtx(cfg.Port, id, pct)
+	}
 }
 
 func runDaemon(cfg config.Config) error {
@@ -501,6 +512,11 @@ func runInstall(args []string) error {
 		return err
 	}
 	fmt.Println("hooks added to", p.settings)
+	if b, err := os.ReadFile(p.settings); err == nil && install.StatusLineTaken(b) {
+		fmt.Println("status line: keeping your own, so context usage (ctx) stays unknown")
+	} else {
+		fmt.Println("status line: reports context usage (ctx) to the daemon, prints nothing")
+	}
 
 	if _, err := os.Stat("/Applications/Tabby.app"); err == nil {
 		dir, err := install.InstallTabbyPlugin(install.TabbyPluginsDir())

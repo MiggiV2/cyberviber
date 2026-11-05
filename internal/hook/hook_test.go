@@ -49,3 +49,21 @@ func TestShouldFailOnGarbage(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestShouldReadContextUsageFromStatusLineInput(t *testing.T) {
+	in := `{"session_id":"abc","model":{"id":"claude-opus-5-5"},"context_window":{"context_window_size":200000,"used_percentage":46.6}}`
+	id, pct, ok := ParseStatus(strings.NewReader(in))
+	if !ok || id != "abc" || pct != 47 {
+		t.Fatalf("got %q %d %v", id, pct, ok)
+	}
+	for _, bad := range []string{
+		`{"session_id":"abc","context_window":{"used_percentage":null}}`,
+		`{"session_id":"abc"}`,
+		`{"context_window":{"used_percentage":12}}`,
+		`not json`,
+	} {
+		if _, _, ok := ParseStatus(strings.NewReader(bad)); ok {
+			t.Errorf("%s: want no value", bad)
+		}
+	}
+}

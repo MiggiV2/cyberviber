@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"time"
 
@@ -49,6 +50,33 @@ func Send(port int, e event.Event) error {
 	}
 	c := http.Client{Timeout: 500 * time.Millisecond}
 	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/event", port), "application/json", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+// ParseStatus reads Claude Code's status line input and returns the session id and its
+// context usage in percent. ok is false when there is no usage yet (no messages).
+func ParseStatus(r io.Reader) (id string, pct int, ok bool) {
+	var in struct {
+		SessionID string `json:"session_id"`
+		Context   struct {
+			Used *float64 `json:"used_percentage"`
+		} `json:"context_window"`
+	}
+	if json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&in) != nil || in.SessionID == "" || in.Context.Used == nil {
+		return "", 0, false
+	}
+	return in.SessionID, int(math.Round(min(max(*in.Context.Used, 0), 100))), true
+}
+
+// SendCtx posts a session's context usage to the daemon.
+func SendCtx(port int, id string, pct int) error {
+	b, _ := json.Marshal(map[string]any{"session_id": id, "pct": pct})
+	c := http.Client{Timeout: 300 * time.Millisecond}
+	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/ctx", port), "application/json", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}

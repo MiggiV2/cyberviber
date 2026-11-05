@@ -47,6 +47,7 @@ func New(store *session.Store, onChange func()) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /event", s.postEvent)
+	mux.HandleFunc("POST /ctx", s.postCtx)
 	mux.HandleFunc("GET /sessions", s.getSessions)
 	mux.HandleFunc("GET /stream", s.stream)
 	mux.HandleFunc("POST /focus", s.focus)
@@ -94,6 +95,25 @@ func (s *Server) postEvent(w http.ResponseWriter, r *http.Request) {
 		s.onChange()
 	}
 	s.Notify()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// postCtx takes {"session_id": id, "pct": 0–100} from `cyberviber statusline`.
+func (s *Server) postCtx(w http.ResponseWriter, r *http.Request) {
+	var c struct {
+		ID  string `json:"session_id"`
+		Pct *int   `json:"pct"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&c); err != nil || c.ID == "" || c.Pct == nil || *c.Pct < 0 || *c.Pct > 100 {
+		http.Error(w, "bad ctx", http.StatusBadRequest)
+		return
+	}
+	if s.store.SetCtx(c.ID, *c.Pct) {
+		if s.onChange != nil {
+			s.onChange()
+		}
+		s.Notify()
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -18,11 +18,29 @@ var Events = []string{
 	"PostToolUseFailure", "PermissionRequest", "Notification", "Stop",
 }
 
-func command(bin string) string {
-	return fmt.Sprintf("'%s' hook %s", strings.ReplaceAll(bin, "'", `'\''`), Marker)
+func command(bin, sub string) string {
+	return fmt.Sprintf("'%s' %s %s", strings.ReplaceAll(bin, "'", `'\''`), sub, Marker)
 }
 
-// MergeHooks returns settings with one cyberviber hook per event. Existing cyberviber hooks are
+// ours reports whether a status line setting is cyberviber's.
+func ours(v any) bool {
+	m, _ := v.(map[string]any)
+	c, _ := m["command"].(string)
+	return strings.Contains(c, Marker)
+}
+
+// StatusLineTaken reports whether settings has a status line that is not cyberviber's;
+// then install leaves it alone and context usage stays unknown.
+func StatusLineTaken(settings []byte) bool {
+	root, _, err := parse(settings)
+	if err != nil {
+		return false
+	}
+	v, set := root["statusLine"]
+	return set && !ours(v)
+}
+
+// MergeHooks returns settings with one cyberviber hook per event and cyberviber's status line. Existing cyberviber hooks are
 // replaced, all other settings and hooks are kept. Note: keys are re-sorted by encoding/json.
 func MergeHooks(settings []byte, bin string) ([]byte, error) {
 	root, hooks, err := parse(settings)
@@ -32,15 +50,19 @@ func MergeHooks(settings []byte, bin string) ([]byte, error) {
 	for _, ev := range Events {
 		groups := withoutOurs(hooks[ev])
 		groups = append(groups, map[string]any{
-			"hooks": []any{map[string]any{"type": "command", "command": command(bin), "timeout": 5}},
+			"hooks": []any{map[string]any{"type": "command", "command": command(bin, "hook"), "timeout": 5}},
 		})
 		hooks[ev] = groups
 	}
 	root["hooks"] = hooks
+	// the status line reports context usage; a foreign one is kept
+	if v, set := root["statusLine"]; !set || ours(v) {
+		root["statusLine"] = map[string]any{"type": "command", "command": command(bin, "statusline")}
+	}
 	return encode(root)
 }
 
-// RemoveHooks removes all cyberviber hooks and drops events that end up empty.
+// RemoveHooks removes all cyberviber hooks (dropping events that end up empty) and its status line.
 func RemoveHooks(settings []byte) ([]byte, error) {
 	root, hooks, err := parse(settings)
 	if err != nil {
@@ -53,6 +75,9 @@ func RemoveHooks(settings []byte) ([]byte, error) {
 		} else {
 			hooks[ev] = groups
 		}
+	}
+	if v, set := root["statusLine"]; set && ours(v) {
+		delete(root, "statusLine")
 	}
 	if len(hooks) == 0 {
 		delete(root, "hooks")

@@ -143,3 +143,57 @@ func TestShouldInstallAndRemoveTabbyPlugin(t *testing.T) {
 		t.Fatal("plugin must be removed")
 	}
 }
+
+func statusLineOf(t *testing.T, b []byte) map[string]any {
+	t.Helper()
+	var s struct {
+		StatusLine map[string]any `json:"statusLine"`
+	}
+	if err := json.Unmarshal(b, &s); err != nil {
+		t.Fatal(err)
+	}
+	return s.StatusLine
+}
+
+func TestShouldInstallStatusLineWhenNoneIsSet(t *testing.T) {
+	out, err := MergeHooks([]byte(existing), "/bin/cv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sl := statusLineOf(t, out)
+	if sl["type"] != "command" || sl["command"] != "'/bin/cv' statusline "+Marker {
+		t.Fatalf("statusLine = %v", sl)
+	}
+	if StatusLineTaken(out) {
+		t.Fatal("our own status line must not count as taken")
+	}
+}
+
+func TestShouldKeepForeignStatusLine(t *testing.T) {
+	in := `{"statusLine": {"type": "command", "command": "~/.claude/mine.sh"}}`
+	out, err := MergeHooks([]byte(in), "/bin/cv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sl := statusLineOf(t, out); sl["command"] != "~/.claude/mine.sh" {
+		t.Fatalf("foreign status line replaced: %v", sl)
+	}
+	if !StatusLineTaken(out) {
+		t.Fatal("foreign status line must count as taken")
+	}
+	out, _ = RemoveHooks(out)
+	if sl := statusLineOf(t, out); sl["command"] != "~/.claude/mine.sh" {
+		t.Fatalf("uninstall removed the foreign status line: %v", sl)
+	}
+}
+
+func TestShouldRemoveOwnStatusLine(t *testing.T) {
+	in, _ := MergeHooks([]byte(existing), "/bin/cv")
+	out, err := RemoveHooks(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "statusLine") {
+		t.Fatalf("status line left behind:\n%s", out)
+	}
+}

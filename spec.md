@@ -83,7 +83,7 @@ Per session the daemon keeps:
 | `state` | `input` · `ready` · `working` · `idle` |
 | `activity` | short text: last tool + target, or the question/permission text, or `Done · …` |
 | `since` | timestamp of the last state change |
-| `ctx` | context usage in percent, if derivable from the transcript (optional) |
+| `ctx` | context usage in percent, from Claude Code's status line input (`context_window.used_percentage`); 0 until known |
 | `pid` | PID of the `claude` process (found by walking up from the hook process) — liveness + jump |
 | `tty` | controlling TTY of the `claude` process |
 | `zellij` | `ZELLIJ_SESSION_NAME` + `ZELLIJ_PANE_ID`, if the hook runs inside zellij |
@@ -226,6 +226,7 @@ The daemon listens on `127.0.0.1:<port>` only:
 | Endpoint | Purpose |
 |---|---|
 | `POST /event` | hook events from `cyberviber hook` |
+| `POST /ctx` | context usage `{"session_id","pct"}` from `cyberviber statusline` |
 | `GET /sessions` | current list as a `sessions` message (same JSON the device gets) |
 | `GET /stream` | server-sent events: a `sessions` message on connect and after every change |
 | `POST /focus` | `{"id": …}` → `focused` answer (same as the device's tap); `not-implemented` until milestone 3 |
@@ -310,7 +311,7 @@ Device (stored in NVS): layout, theme, brightness, dim_after. Nothing to set up 
 
 1. **Design** — HTML mockups of all layouts and themes. ✅
 1b. **Browser simulator** — daemon serves the design page with live sessions via SSE. ✅
-2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx still missing)
+2. **Daemon (Go)** — `cyberviber hook` + session store + `cyberviber status` + `install`/`uninstall`. ✅ (ctx via `cyberviber statusline`)
 3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Tabby + zellij verified end to end; Tabby without zellij and Ghostty (both modes) pending live verification.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`). ✅ (`firmware/`, LVGL 9.2 + LovyanGFX + ArduinoJson; USB link in `internal/serial`)
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch. ✅ (layouts and themes checked with device screenshots; settings screen and swipe checked by hand)
@@ -322,7 +323,7 @@ Device (stored in NVS): layout, theme, brightness, dim_after. Nothing to set up 
 - Owner's zellij setup: installed version, and are sessions started as `zellij attach <name>` / `zellij -s <name>` (easy client → session mapping) or plain `zellij` (random names, needs the socket lookup)?
 - Ghostty: reliability of the title-marker approach while Claude Code updates the title; does a newer Ghostty expose a TTY or PID per terminal?
 - Ghostty path is implemented and unit-tested, but Ghostty isn't installed on the dev machine: verify the AppleScript property names (`id`, `working directory`, `name`) and the title marker on a real Ghostty ≥ 1.3.
-- Can context usage (`ctx`) be derived cheaply from the transcript, or drop it?
+- ~~Can context usage (`ctx`) be derived cheaply from the transcript?~~ Decided: no. The transcript has the token counts but not the context window size (the same model runs with 200k or 1M), so a percentage would be a guess. Claude Code passes the exact `context_window.used_percentage` to its status line command; `install` sets `cyberviber statusline` as the status line (it prints nothing and posts the value to `POST /ctx`). A status line the user already has is kept, and ctx then stays unknown.
 - Should `ready` sessions auto-decay to `idle`, or stay `ready` until touched? (currently: decay after `idle_after`)
 - Interrupting a turn with Esc: handled via the registry status (see 3.1); verify on a real interrupt.
 - Registry status `shell`: what does it mean, and should it map to a state?

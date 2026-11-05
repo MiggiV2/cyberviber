@@ -17,6 +17,7 @@ Or download a binary from the [releases](https://github.com/d135-1r43/cyberviber
 
 `cyberviber install`:
 - adds hooks to `~/.claude/settings.json`, keeping all other hooks. A backup is written once to `settings.json.cyberviber-backup`.
+- sets `cyberviber statusline` as Claude Code's status line, unless you have your own. It prints nothing and reports each session's context usage to the daemon (the `ctx` bar in the btop layout).
 - installs the launchd agent `dev.cyberviber.daemon`, which logs to `~/Library/Logs/cyberviber.log`.
 - installs the Tabby plugin, if Tabby is present. Reload or restart Tabby once afterwards.
 

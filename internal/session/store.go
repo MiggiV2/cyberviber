@@ -184,6 +184,18 @@ func (s *Store) SetTerminal(id, terminal string, tab int) bool {
 	return true
 }
 
+// SetCtx records a session's context usage in percent; unknown sessions are ignored.
+func (s *Store) SetCtx(id string, pct int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ss, ok := s.sessions[id]
+	if !ok || ss.Ctx == pct {
+		return false
+	}
+	ss.Ctx = pct
+	return true
+}
+
 // List returns all sessions: needs input → ready → working → idle, then most recent first.
 func (s *Store) List() []Session {
 	s.mu.Lock()

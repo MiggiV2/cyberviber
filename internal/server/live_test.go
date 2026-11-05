@@ -266,3 +266,33 @@ func TestShouldValidateBacklightConfig(t *testing.T) {
 		t.Fatalf("dim_after 0 must reach the device: %s", b)
 	}
 }
+
+func TestShouldStoreContextUsage(t *testing.T) {
+	api, ts := newTestServer(t)
+	post := func(path, body string) int {
+		resp, err := http.Post(ts.URL+path, "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if c := post("/event", `{"session_id":"s1","hook_event_name":"SessionStart","cwd":"/tmp/x"}`); c != http.StatusNoContent {
+		t.Fatalf("event: %d", c)
+	}
+	if c := post("/ctx", `{"session_id":"s1","pct":47}`); c != http.StatusNoContent {
+		t.Fatalf("ctx: %d", c)
+	}
+	var snap protocol.Sessions
+	if err := json.Unmarshal(api.Snapshot(), &snap); err != nil || len(snap.Sessions) != 1 || snap.Sessions[0].Ctx != 47 {
+		t.Fatalf("snapshot = %+v (%v)", snap, err)
+	}
+	for _, bad := range []string{`{"session_id":"s1","pct":101}`, `{"pct":5}`, `x`} {
+		if c := post("/ctx", bad); c != http.StatusBadRequest {
+			t.Errorf("%s: %d", bad, c)
+		}
+	}
+	if c := post("/ctx", `{"session_id":"unknown","pct":5}`); c != http.StatusNoContent {
+		t.Fatalf("unknown session must be ignored quietly: %d", c)
+	}
+}
