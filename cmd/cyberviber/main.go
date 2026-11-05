@@ -48,6 +48,8 @@ usage:
   cyberviber sim          open the browser simulator (daemon must be running)
   cyberviber layout [id]  show or set the device layout (waybar, tiling, btop, walker, hyprlock)
   cyberviber theme [id]   show or set the device theme (tokyo-night, nord, … see 'theme list')
+  cyberviber brightness [1-100]     show or set the backlight brightness in percent
+  cyberviber dim [minutes|off]      show or set when the backlight dims without activity
   cyberviber screenshot [file.png]  save the device screen (takes ~20 s)
   cyberviber release [s]  free the device's serial port for s seconds (default 60), e.g. to flash it
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
@@ -86,6 +88,10 @@ func main() {
 		err = runConfig(cfg, "layout", protocol.Layouts, os.Args[2:])
 	case "theme":
 		err = runConfig(cfg, "theme", protocol.Themes, os.Args[2:])
+	case "brightness":
+		err = runBrightness(cfg, os.Args[2:])
+	case "dim":
+		err = runDim(cfg, os.Args[2:])
 	case "screenshot":
 		err = runScreenshot(cfg, os.Args[2:])
 	case "install":
@@ -276,8 +282,81 @@ func runConfig(cfg config.Config, key string, valid []string, args []string) err
 	if !slices.Contains(valid, args[0]) {
 		return fmt.Errorf("unknown %s %q (one of: %s)", key, args[0], strings.Join(valid, ", "))
 	}
+	return postConfig(cfg, map[string]any{key: args[0]}, func(st serial.Status) bool {
+		return key == "layout" && st.Layout == args[0] || key == "theme" && st.Theme == args[0]
+	}, fmt.Sprintf("%s: %s", key, args[0]))
+}
+
+// runBrightness shows or sets the backlight brightness in percent.
+func runBrightness(cfg config.Config, args []string) error {
+	st, err := deviceStatus(cfg)
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 {
+		fmt.Printf("brightness: %d%%\n", st.Brightness)
+		return nil
+	}
+	v, err := strconv.Atoi(strings.TrimSuffix(args[0], "%"))
+	if err != nil || v < 1 || v > 100 {
+		return fmt.Errorf("brightness must be 1–100, got %q", args[0])
+	}
+	return postConfig(cfg, map[string]any{"brightness": v}, func(st serial.Status) bool { return st.Brightness == v },
+		fmt.Sprintf("brightness: %d%%", v))
+}
+
+// runDim shows or sets how long the device waits without activity before it dims.
+func runDim(cfg config.Config, args []string) error {
+	st, err := deviceStatus(cfg)
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 {
+		fmt.Println("dim after:", fmtDim(st.DimAfter))
+		return nil
+	}
+	v := 0
+	if args[0] != "off" && args[0] != "never" && args[0] != "0" {
+		d, err := time.ParseDuration(args[0])
+		if err != nil { // a plain number means minutes
+			n, nerr := strconv.Atoi(args[0])
+			d, err = time.Duration(n)*time.Minute, nerr
+		}
+		v = int(d / time.Minute)
+		if err != nil || d%time.Minute != 0 || v < 1 || v > protocol.MaxDimAfter {
+			return fmt.Errorf("dim takes whole minutes 1–%d (e.g. 10, 15m, 1h) or off, got %q", protocol.MaxDimAfter, args[0])
+		}
+	}
+	return postConfig(cfg, map[string]any{"dim_after": v}, func(st serial.Status) bool { return st.DimAfter != nil && *st.DimAfter == v },
+		"dim after: "+fmtDim(&v))
+}
+
+func fmtDim(m *int) string {
+	switch {
+	case m == nil:
+		return "unknown (firmware before 0.3.0)"
+	case *m == 0:
+		return "off"
+	default:
+		return fmt.Sprintf("%d min", *m)
+	}
+}
+
+func deviceStatus(cfg config.Config) (serial.Status, error) {
+	var st serial.Status
+	if err := getJSON(cfg, "/device", &st); err != nil {
+		return st, fmt.Errorf("daemon not reachable on port %d (is it running?)", cfg.Port)
+	}
+	if !st.Connected {
+		return st, serial.ErrNotConnected
+	}
+	return st, nil
+}
+
+// postConfig sends a config change and waits for the device to confirm it with a hello.
+func postConfig(cfg config.Config, change map[string]any, confirmed func(serial.Status) bool, done string) error {
 	c := http.Client{Timeout: 2 * time.Second}
-	body, _ := json.Marshal(map[string]string{key: args[0]})
+	body, _ := json.Marshal(change)
 	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/config", cfg.Port), "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -285,17 +364,17 @@ func runConfig(cfg config.Config, key string, valid []string, args []string) err
 	msg, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%s: %s", key, strings.TrimSpace(string(msg)))
+		return errors.New(strings.TrimSpace(string(msg)))
 	}
-	// the device confirms with a hello carrying the applied config
+	var st serial.Status
 	for i := 0; i < 30; i++ {
-		if getJSON(cfg, "/device", &st) == nil && (key == "layout" && st.Layout == args[0] || key == "theme" && st.Theme == args[0]) {
-			fmt.Printf("%s: %s\n", key, args[0])
+		if getJSON(cfg, "/device", &st) == nil && confirmed(st) {
+			fmt.Println(done)
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("%s sent, but the device did not confirm it", key)
+	return errors.New("sent, but the device did not confirm it")
 }
 
 func runScreenshot(cfg config.Config, args []string) error {
@@ -351,7 +430,11 @@ func runStatus(cfg config.Config) error {
 	if getJSON(cfg, "/device", &dev) == nil {
 		switch {
 		case dev.Connected:
-			fmt.Printf("device: %s (fw %s)\n\n", dev.Port, dev.Firmware)
+			fmt.Printf("device: %s (fw %s)", dev.Port, dev.Firmware)
+			if dev.DimAfter != nil {
+				fmt.Printf(" · brightness %d%% · dim after %s", dev.Brightness, fmtDim(dev.DimAfter))
+			}
+			fmt.Print("\n\n")
 		case dev.Released > 0:
 			fmt.Printf("device: port released until %s\n\n", time.Unix(dev.Released, 0).Format("15:04:05"))
 		default:

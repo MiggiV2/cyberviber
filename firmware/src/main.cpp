@@ -35,6 +35,8 @@ static void loadConfig() {
   char buf[32];
   if (p.getString("layout", buf, sizeof buf) && findLayout(buf) >= 0) curLayout = findLayout(buf);
   if (p.getString("theme", buf, sizeof buf) && findTheme(buf) >= 0) curTheme = findTheme(buf);
+  brightPct = LV_CLAMP(1, p.getInt("bright", brightPct), 100);
+  dimAfterMin = LV_CLAMP(0, p.getInt("dim", dimAfterMin), 1440);
   p.end();
   T = &THEMES[curTheme];
 }
@@ -44,6 +46,8 @@ void saveConfig() {
   p.begin("cv", false);
   p.putString("layout", LAYOUTS[curLayout].id);
   p.putString("theme", THEMES[curTheme].id);
+  p.putInt("bright", brightPct);
+  p.putInt("dim", dimAfterMin);
   p.end();
 }
 
@@ -56,6 +60,8 @@ void sendHello() {
   doc["fw"] = FW_VERSION;
   doc["layout"] = LAYOUTS[curLayout].id;
   doc["theme"] = THEMES[curTheme].id;
+  doc["brightness"] = brightPct;
+  doc["dim_after"] = dimAfterMin;
   serializeJson(doc, Serial);
   Serial.print('\n');
 }
@@ -96,6 +102,7 @@ static void handleSessions(JsonDocument& doc) {
   macTZ = doc["tz"] | 0;
 
   static Session next[MAX_SESSIONS];
+  bool newInput = false;
   int n = 0;
   for (JsonObject s : doc["sessions"].as<JsonArray>()) {
     if (n == MAX_SESSIONS) break;
@@ -110,7 +117,14 @@ static void handleSessions(JsonDocument& doc) {
     d.since = s["since"] | (int64_t)0;
     d.tab = s["tab"] | 0;
     d.ctx = s["ctx"] | 0;
+    if (d.state == S_INPUT) {
+      bool was = false;
+      for (int k = 0; k < nSessions; k++)
+        if (sessions[k].state == S_INPUT && !strcmp(sessions[k].id, d.id)) was = true;
+      newInput |= !was;
+    }
   }
+  if (newInput) backlightWake();
   // input → ready → working → idle, then most recent state change first
   std::stable_sort(next, next + n, [](const Session& a, const Session& b) {
     if (a.state != b.state) return a.state < b.state;
@@ -157,6 +171,7 @@ static void handleLine(char* line) {
     sendHello();
   } else if (!strcmp(type, "config")) {
     applyConfig(findLayout(doc["layout"] | ""), findTheme(doc["theme"] | ""), false);
+    applyBacklight(doc["brightness"] | -1, doc["dim_after"] | -1, false);
     sendHello();  // confirms the applied config
   } else if (!strcmp(type, "screenshot")) {
     sendScreenshot(doc["y"] | 0, doc["rows"] | H);
@@ -197,13 +212,19 @@ static void flushCb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
   lv_display_flush_ready(disp);
 }
 
+void setBacklight(uint8_t level) { tft.setBrightness(level); }
+
 static void touchCb(lv_indev_t*, lv_indev_data_t* data) {
-  static bool wasPressed = false;
+  static bool wasPressed = false, swallow = false;
   int32_t x, y;
   bool pressed = tft.getTouch(&x, &y);
-  if (pressed && !wasPressed) gestured = false;  // a new touch starts as a possible tap
+  if (pressed && !wasPressed) {
+    gestured = false;               // a new touch starts as a possible tap
+    swallow = backlightWake();      // a touch on the dimmed screen only wakes it
+  }
+  if (pressed) backlightWake();     // holding or scrolling keeps it awake
   wasPressed = pressed;
-  if (pressed) {
+  if (pressed && !swallow) {
     data->state = LV_INDEV_STATE_PRESSED;
     data->point.x = x;
     data->point.y = y;
@@ -222,6 +243,21 @@ static void touchCb(lv_indev_t*, lv_indev_data_t* data) {
 }
 
 static uint32_t tickCb() { return millis(); }
+
+// BOOT button (GPIO0, active low): next layout. Only selects the boot mode during a reset,
+// afterwards it is a plain input. A press on the dimmed screen only wakes it.
+static constexpr int BOOT_PIN = 0;
+static constexpr uint32_t DEBOUNCE_MS = 30;
+
+static void pollButton() {
+  static bool down = false;
+  static uint32_t changedAt = 0;
+  bool now = digitalRead(BOOT_PIN) == LOW;
+  if (now == down || millis() - changedAt < DEBOUNCE_MS) return;
+  down = now;
+  changedAt = millis();
+  if (down && !backlightWake()) cycleLayout(1);
+}
 
 // Touch calibration: LovyanGFX's four-corner routine, run once and kept in NVS.
 // Holding a finger on the screen while the board starts runs it again.
@@ -257,10 +293,12 @@ void setup() {
 
   tft.init();
   tft.setRotation(BOARD_ROTATION);
-  tft.setBrightness(200);
+  tft.setBrightness(255);
   tft.fillScreen(TFT_BLACK);
   setupTouch();
   loadConfig();
+  backlightInit();
+  pinMode(BOOT_PIN, INPUT_PULLUP);
 
   lv_init();
   lv_tick_set_cb(tickCb);
@@ -279,6 +317,7 @@ void setup() {
 
 void loop() {
   pollSerial();
+  pollButton();
   lv_timer_handler();
   delay(5);
 }

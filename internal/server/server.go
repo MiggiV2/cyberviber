@@ -179,14 +179,15 @@ func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// config takes {"layout": id, "theme": id}; unknown ids are rejected.
+// config takes {"layout": id, "theme": id, "brightness": 1–100, "dim_after": minutes};
+// unknown ids and values out of range are rejected.
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	if s.Configure == nil {
 		http.NotFound(w, nil)
 		return
 	}
 	var c protocol.Config
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&c); err != nil || c.Layout == "" && c.Theme == "" {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&c); err != nil || c.Empty() {
 		http.Error(w, "bad config", http.StatusBadRequest)
 		return
 	}
@@ -196,6 +197,14 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.Theme != "" && !slices.Contains(protocol.Themes, c.Theme) {
 		http.Error(w, "unknown theme "+c.Theme, http.StatusBadRequest)
+		return
+	}
+	if c.Brightness != 0 && (c.Brightness < 1 || c.Brightness > 100) {
+		http.Error(w, "brightness must be 1–100", http.StatusBadRequest)
+		return
+	}
+	if c.DimAfter != nil && (*c.DimAfter < 0 || *c.DimAfter > protocol.MaxDimAfter) {
+		http.Error(w, fmt.Sprintf("dim_after must be 0–%d minutes", protocol.MaxDimAfter), http.StatusBadRequest)
 		return
 	}
 	c.Type = "config"

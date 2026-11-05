@@ -170,7 +170,7 @@ The board is plugged into the Mac anyway for power, so the same cable carries th
 - **Flashing:** the daemon holds the serial port open. `cyberviber release [s]` (`POST /release`) frees it for `pio run -t upload`; the daemon reattaches afterwards. **Verified:** release → flash → reattach.
 - **Handshake (implemented):** the daemon sends `{"type":"hello","daemon":"cyberviber",…}` every second while probing a port; the firmware answers with its own `hello` (and also says hello once after boot). Probing gives up after 6 s per port. A `log` message from the device (debug builds) goes to the daemon log. `GET /device` reports the connection; `cyberviber status` prints it.
 - **Clock:** the `sessions` message carries `tz` (the Mac's UTC offset in seconds) so the device can show local time.
-- **Config (implemented):** daemon → device `{"type":"config","layout":"tiling","theme":"nord"}` (either field optional); the device applies it, stores it in NVS and answers with a `hello` carrying the applied values. `POST /config` validates the ids.
+- **Config (implemented):** daemon → device `{"type":"config","layout":"tiling","theme":"nord","brightness":80,"dim_after":10}` (every field optional; brightness in percent 1–100, dim_after in minutes 0–1440); the device applies it, stores it in NVS and answers with a `hello` carrying the applied values. `POST /config` validates the ids.
 - **Screenshot (implemented, debug tool):** daemon → device `{"type":"screenshot"}` (optional `y`, `rows`); the device reads the panel back and answers with `{"type":"shot","w":240,"h":320,"y":…,"n":4,"data":"<base64 RGB565 LE>"}` strips and `{"type":"shot_end"}`. The daemon holds back session pushes meanwhile (writing during the stream damaged it) and re-requests damaged strips. **Verified:** this panel's read-back is shifted by one byte (24-bit reads arrive as b, r, g); the firmware corrects it. Occasional short bands in screenshots are read-back noise, not on the screen. `GET /screenshot` → PNG, `cyberviber screenshot [file]`.
 
 The session lists are tiny (< 2 KB for 9 sessions), so 115200 baud is plenty; the full list is sent each time, no diffing.
@@ -281,9 +281,10 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 
 ### 4.5 Interaction
 
+- The BOOT button (GPIO0) cycles to the next layout, like a left swipe.
 - Tap a session (row, tile, card, chip, waybar number) → `focus` message, the item flashes in `accent`, a mako-style toast shows `⟶ Ghostty · tab 6` for ~1.5 s.
 - Connection state: a "waiting for Mac…" screen in the current theme until the first message arrives, and again after 15 s of silence.
-- Backlight dims after N minutes without changes; any `input` state wakes it.
+- Backlight dims after N minutes (`dim_after`, default 10, 0 = never) without activity: a touch, or a session newly in `input`. Either wakes it; the waking touch does nothing else.
 
 ### 4.6 Rendering constraints (LVGL)
 
@@ -303,7 +304,7 @@ serial = "auto"       # or an explicit path like /dev/cu.usbserial-1410
 baud = 115200
 ```
 
-Device (stored in NVS): layout, theme, brightness. Nothing to set up on first boot: plug it in and it works.
+Device (stored in NVS): layout, theme, brightness, dim_after. Nothing to set up on first boot: plug it in and it works.
 
 ## 6. Milestones
 
@@ -313,7 +314,7 @@ Device (stored in NVS): layout, theme, brightness. Nothing to set up on first bo
 3. **Jump** — Ghostty and Tabby (plugin), each with and without zellij. Tabby + zellij verified end to end; Tabby without zellij and Ghostty (both modes) pending live verification.
 4. **Firmware skeleton** — display + touch + LVGL, serial JSON client, one layout (`waybar`). ✅ (`firmware/`, LVGL 9.2 + LovyanGFX + ArduinoJson; USB link in `internal/serial`)
 5. **All layouts + themes** — settings screen, NVS persistence, swipe to switch. ✅ (layouts and themes checked with device screenshots; settings screen and swipe checked by hand)
-6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist).
+6. **Polish** — backlight handling, serial auto-reconnect, installer (`cyberviber install` writes hooks + launchd plist). ✅ (fw 0.3.0: brightness and dim timeout in the settings screen and via `cyberviber brightness` / `cyberviber dim`; dimming checked by hand)
 
 ## 7. Open questions
 

@@ -127,6 +127,25 @@ func TestShouldHandshakeAndPushSessions(t *testing.T) {
 	dev.next(t, "sessions")
 }
 
+func TestShouldTrackBacklightSettingsFromHello(t *testing.T) {
+	port, dev := newFake()
+	l, cancel := startLink(t, map[string]*fakePort{"/dev/cu.device": port})
+	defer cancel()
+
+	dev.next(t, "hello")
+	dev.send(t, `{"type":"hello","device":"cyberviber","fw":"0.3.0","brightness":75,"dim_after":0}`)
+	dev.next(t, "sessions")
+	if st := l.Status(); st.Brightness != 75 || st.DimAfter == nil || *st.DimAfter != 0 {
+		t.Fatalf("status = %+v", st)
+	}
+
+	dev.send(t, `{"type":"hello","device":"cyberviber","fw":"0.3.0","brightness":100,"dim_after":15}`)
+	dev.next(t, "sessions")
+	if st := l.Status(); st.Brightness != 100 || st.DimAfter == nil || *st.DimAfter != 15 {
+		t.Fatalf("status after settings change = %+v", st)
+	}
+}
+
 func TestShouldAnswerFocus(t *testing.T) {
 	port, dev := newFake()
 	_, cancel := startLink(t, map[string]*fakePort{"/dev/cu.device": port})

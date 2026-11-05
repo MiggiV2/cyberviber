@@ -436,6 +436,7 @@ void tickSecond() {
   if (silent && !waiting) lv_obj_remove_flag(waitBox, LV_OBJ_FLAG_HIDDEN);
   else if (!silent && waiting) lv_obj_add_flag(waitBox, LV_OBJ_FLAG_HIDDEN);
   updateDyn(true, false, false);
+  backlightTick();
 }
 
 static void onSpin(lv_timer_t*) {
@@ -466,6 +467,27 @@ static void onPickLayout(lv_event_t* e) {
 
 static void onPickTheme(lv_event_t* e) {
   applyConfig(curLayout, (int)(intptr_t)lv_event_get_user_data(e), true);
+}
+
+static void onPickBright(lv_event_t* e) { applyBacklight((int)(intptr_t)lv_event_get_user_data(e), -1, true); }
+static void onPickDim(lv_event_t* e) { applyBacklight(-1, (int)(intptr_t)lv_event_get_user_data(e), true); }
+
+// a row of equal chips, the current value in accent
+static void chipRow(lv_obj_t* list, const char* const* names, const int* values, int n, int cur, lv_event_cb_t cb) {
+  lv_obj_t* row = box(list);
+  lv_obj_set_size(row, lv_pct(100), 28);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(row, 4, 0);
+  for (int i = 0; i < n; i++) {
+    bool on = values[i] == cur;
+    lv_obj_t* c = frame(row, on ? T->accent : T->border, 1);
+    lv_obj_set_height(c, 28);
+    lv_obj_set_flex_grow(c, 1);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(c, cb, LV_EVENT_SHORT_CLICKED, (void*)(intptr_t)values[i]);
+    lv_obj_t* l = label(c, &cv_11b, on ? T->accent : T->fg, names[i]);
+    lv_obj_center(l);
+  }
 }
 
 static lv_obj_t* settingsRow(lv_obj_t* list, bool on, lv_event_cb_t cb, int value) {
@@ -527,6 +549,18 @@ static void buildSettings() {
   label(prev, &cv_11b, T->yellow, "✻ busy");
   label(prev, &cv_11b, T->muted, "◦ idle");
 
+  static const char* const brightNames[] = {"25%", "50%", "75%", "100%"};
+  static const int brightValues[] = {25, 50, 75, 100};
+  lv_obj_t* hb = label(list, &cv_11, T->muted, "BRIGHTNESS");
+  lv_obj_set_style_pad_top(hb, 6, 0);
+  chipRow(list, brightNames, brightValues, 4, brightPct, onPickBright);
+
+  static const char* const dimNames[] = {"off", "1m", "5m", "15m", "30m"};
+  static const int dimValues[] = {0, 1, 5, 15, 30};
+  lv_obj_t* hd = label(list, &cv_11, T->muted, "DIM AFTER · touch or ! wakes");
+  lv_obj_set_style_pad_top(hd, 6, 0);
+  chipRow(list, dimNames, dimValues, 5, dimAfterMin, onPickDim);
+
   lv_obj_t* h1 = label(list, &cv_11, T->muted, "LAYOUT · swipe to cycle");
   lv_obj_set_style_pad_top(h1, 6, 0);
   for (int i = 0; i < N_LAYOUTS; i++) {
@@ -581,16 +615,32 @@ void applyConfig(int layout, int theme, bool announce) {
   if (announce) sendHello();  // the daemon learns the new layout/theme from hello
 }
 
+void applyBacklight(int brightness, int dimAfter, bool announce) {
+  if (brightness < 1 || brightness > 100) brightness = brightPct;
+  if (dimAfter < 0 || dimAfter > 1440) dimAfter = dimAfterMin;
+  if (brightness == brightPct && dimAfter == dimAfterMin) return;
+  brightPct = brightness;
+  dimAfterMin = dimAfter;
+  backlightApply();
+  if (settingsObj) buildSettings();
+  saveConfig();
+  if (announce) sendHello();
+}
+
+void cycleLayout(int step) {
+  int next = (curLayout + step + N_LAYOUTS) % N_LAYOUTS;
+  applyConfig(next, curTheme, true);
+  char text[48];
+  snprintf(text, sizeof text, "%c · %s", LAYOUTS[next].tag, LAYOUTS[next].name);
+  showToast(text, T->accent);
+}
+
 static void onGesture(lv_event_t*) {
   lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_active());
   if (dir != LV_DIR_LEFT && dir != LV_DIR_RIGHT) return;
   gestured = true;
   if (settingsObj) return;
-  int next = (curLayout + (dir == LV_DIR_LEFT ? 1 : N_LAYOUTS - 1)) % N_LAYOUTS;
-  applyConfig(next, curTheme, true);
-  char text[48];
-  snprintf(text, sizeof text, "%c · %s", LAYOUTS[next].tag, LAYOUTS[next].name);
-  showToast(text, T->accent);
+  cycleLayout(dir == LV_DIR_LEFT ? 1 : -1);
 }
 
 // ---------------------------------------------------------------- init

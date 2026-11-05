@@ -46,11 +46,21 @@ var (
 		"rose-pine", "matte-black", "osaka-jade", "ristretto", "catppuccin-latte"}
 )
 
-// Config changes the device's layout and/or theme; empty fields stay as they are.
+// Config changes the device's settings; empty fields stay as they are.
 type Config struct {
-	Type   string `json:"type"`
-	Layout string `json:"layout,omitempty"`
-	Theme  string `json:"theme,omitempty"`
+	Type       string `json:"type"`
+	Layout     string `json:"layout,omitempty"`
+	Theme      string `json:"theme,omitempty"`
+	Brightness int    `json:"brightness,omitempty"` // percent, 1–100
+	DimAfter   *int   `json:"dim_after,omitempty"`  // minutes without activity, 0 = never dim
+}
+
+// MaxDimAfter is the longest dim timeout the firmware accepts (minutes).
+const MaxDimAfter = 1440
+
+// Empty reports whether c changes nothing.
+func (c Config) Empty() bool {
+	return c.Layout == "" && c.Theme == "" && c.Brightness == 0 && c.DimAfter == nil
 }
 
 // Focus is sent by the device (or simulator) when a session is tapped.

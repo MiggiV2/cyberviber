@@ -38,12 +38,14 @@ const (
 
 // Status describes the device connection.
 type Status struct {
-	Connected bool   `json:"connected"`
-	Port      string `json:"port,omitempty"`
-	Firmware  string `json:"fw,omitempty"`
-	Layout    string `json:"layout,omitempty"`
-	Theme     string `json:"theme,omitempty"`
-	Released  int64  `json:"released_until,omitempty"` // unix seconds, while the port is released
+	Connected  bool   `json:"connected"`
+	Port       string `json:"port,omitempty"`
+	Firmware   string `json:"fw,omitempty"`
+	Layout     string `json:"layout,omitempty"`
+	Theme      string `json:"theme,omitempty"`
+	Brightness int    `json:"brightness,omitempty"`     // percent
+	DimAfter   *int   `json:"dim_after,omitempty"`      // minutes, 0 = never; nil with firmware before 0.3.0
+	Released   int64  `json:"released_until,omitempty"` // unix seconds, while the port is released
 }
 
 type Link struct {
@@ -158,7 +160,8 @@ func (l *Link) Run(ctx context.Context) {
 				continue
 			}
 			l.Logf("serial: device on %s (fw %s)", path, hello.FW)
-			l.setStatus(Status{Connected: true, Port: path, Firmware: hello.FW, Layout: hello.Layout, Theme: hello.Theme})
+			l.setStatus(Status{Connected: true, Port: path, Firmware: hello.FW, Layout: hello.Layout, Theme: hello.Theme,
+				Brightness: hello.Bright, DimAfter: hello.Dim})
 			rel, err := l.serve(ctx, c)
 			c.close()
 			l.setStatus(Status{})
@@ -197,6 +200,8 @@ type hello struct {
 	FW     string `json:"fw"`
 	Layout string `json:"layout"`
 	Theme  string `json:"theme"`
+	Bright int    `json:"brightness"`
+	Dim    *int   `json:"dim_after"`
 }
 
 type inbound struct {
@@ -367,7 +372,7 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 				var h hello
 				if json.Unmarshal(line, &h) == nil {
 					st := l.Status()
-					st.Firmware, st.Layout, st.Theme = h.FW, h.Layout, h.Theme
+					st.Firmware, st.Layout, st.Theme, st.Brightness, st.DimAfter = h.FW, h.Layout, h.Theme, h.Bright, h.Dim
 					l.setStatus(st)
 				}
 				send(l.Snapshot())

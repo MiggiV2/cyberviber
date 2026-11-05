@@ -231,3 +231,38 @@ func TestShouldValidateAndForwardConfig(t *testing.T) {
 		t.Fatalf("status = %d", c)
 	}
 }
+
+func TestShouldValidateBacklightConfig(t *testing.T) {
+	api, ts := newTestServer(t)
+	var got []protocol.Config
+	api.Configure = func(c protocol.Config) error {
+		got = append(got, c)
+		return nil
+	}
+	post := func(body string) int {
+		resp, err := http.Post(ts.URL+"/config", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, ok := range []string{`{"brightness":40}`, `{"dim_after":0}`, `{"dim_after":15,"brightness":100}`} {
+		if c := post(ok); c != http.StatusNoContent {
+			t.Fatalf("%s: status = %d", ok, c)
+		}
+	}
+	for _, bad := range []string{`{"brightness":101}`, `{"brightness":-1}`, `{"dim_after":-1}`, `{"dim_after":1441}`} {
+		if c := post(bad); c != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d", bad, c)
+		}
+	}
+	if len(got) != 3 || got[0].Brightness != 40 || got[0].DimAfter != nil ||
+		got[1].DimAfter == nil || *got[1].DimAfter != 0 || got[2].Brightness != 100 || *got[2].DimAfter != 15 {
+		t.Fatalf("got %+v", got)
+	}
+	b, _ := json.Marshal(got[1])
+	if string(b) != `{"type":"config","dim_after":0}` {
+		t.Fatalf("dim_after 0 must reach the device: %s", b)
+	}
+}

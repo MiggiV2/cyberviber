@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#define FW_VERSION "0.2.0"
+#define FW_VERSION "0.3.0"
 
 static constexpr int W = 240, H = 320;
 static constexpr int MAX_SESSIONS = 16;
@@ -96,7 +96,9 @@ void uiInit();
 void rebuild();
 void onSessions();  // after a sessions message
 void applyConfig(int layout, int theme, bool announce);
+void applyBacklight(int brightness, int dimAfter, bool announce);  // -1 keeps a value
 void openSettings();
+void cycleLayout(int step);  // +1 next, -1 previous; shows a toast
 void showToast(const char* text, uint32_t border);
 void showFocusError(const char* id, const char* reason);
 void tickSecond();
@@ -106,3 +108,13 @@ extern bool gestured;  // the current touch became a swipe: no tap
 void sendFocus(const char* id);
 void sendHello();
 void saveConfig();
+
+// ---------------------------------------------------------------- backlight (backlight.cpp)
+
+extern int brightPct;    // 1–100
+extern int dimAfterMin;  // 0 = never dim
+void setBacklight(uint8_t level);  // main.cpp: drives the panel PWM
+void backlightInit();
+bool backlightWake();  // activity; true if the screen was dimmed
+void backlightTick();  // once a second
+void backlightApply();
