@@ -23,6 +23,7 @@ bool heard = false;
 
 const Theme* T = &THEMES[0];
 int curLayout = 0, curTheme = 0;
+bool usbBottom = false;
 
 int64_t nowMac() { return macNow + (int64_t)((millis() - macNowAt) / 1000); }
 bool macTimeKnown() { return macNow > 0; }
@@ -37,6 +38,7 @@ static void loadConfig() {
   if (p.getString("theme", buf, sizeof buf) && findTheme(buf) >= 0) curTheme = findTheme(buf);
   brightPct = LV_CLAMP(1, p.getInt("bright", brightPct), 100);
   dimAfterMin = LV_CLAMP(0, p.getInt("dim", dimAfterMin), 1440);
+  usbBottom = p.getBool("usbbot", usbBottom);
   p.end();
   T = &THEMES[curTheme];
 }
@@ -48,6 +50,7 @@ void saveConfig() {
   p.putString("theme", THEMES[curTheme].id);
   p.putInt("bright", brightPct);
   p.putInt("dim", dimAfterMin);
+  p.putBool("usbbot", usbBottom);
   p.end();
 }
 
@@ -62,6 +65,7 @@ void sendHello() {
   doc["theme"] = THEMES[curTheme].id;
   doc["brightness"] = brightPct;
   doc["dim_after"] = dimAfterMin;
+  doc["usb"] = usbBottom ? "bottom" : "top";
   serializeJson(doc, Serial);
   Serial.print('\n');
 }
@@ -146,7 +150,12 @@ static void sendScreenshot(int from, int rows) {
   int to = LV_MIN(H, from + rows);
   for (int y = from; y < to; y += N) {
     // This panel's read-back is shifted by one byte: what arrives as (r, g, b) is really (b, r, g).
-    tft.readRect(0, y, W, N, rgb);
+    if (usbBottom) {  // the panel holds the picture turned by 180°
+      tft.readRect(0, H - N - y, W, N, rgb);
+      std::reverse(rgb, rgb + W * N);
+    } else {
+      tft.readRect(0, y, W, N, rgb);
+    }
     for (int i = 0; i < W * N; i++) px[i] = (rgb[i].g >> 3) << 11 | (rgb[i].b >> 2) << 5 | rgb[i].r >> 3;
     size_t len = 0;
     mbedtls_base64_encode(b64, sizeof b64, &len, (const unsigned char*)px, sizeof px);
@@ -172,6 +181,8 @@ static void handleLine(char* line) {
   } else if (!strcmp(type, "config")) {
     applyConfig(findLayout(doc["layout"] | ""), findTheme(doc["theme"] | ""), false);
     applyBacklight(doc["brightness"] | -1, doc["dim_after"] | -1, false);
+    const char* usb = doc["usb"] | "";
+    applyUsbBottom(!strcmp(usb, "bottom") ? 1 : !strcmp(usb, "top") ? 0 : -1, false);
     sendHello();  // confirms the applied config
   } else if (!strcmp(type, "screenshot")) {
     sendScreenshot(doc["y"] | 0, doc["rows"] | H);
@@ -203,10 +214,17 @@ static void pollSerial() {
 
 // ---------------------------------------------------------------- LVGL glue
 
+// USB at the bottom: a rectangle turned by 180° is its pixel buffer reversed, placed mirrored.
 static void flushCb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
   uint32_t w = lv_area_get_width(area), h = lv_area_get_height(area);
+  int32_t x = area->x1, y = area->y1;
+  if (usbBottom) {
+    std::reverse((uint16_t*)px, (uint16_t*)px + w * h);
+    x = W - 1 - area->x2;
+    y = H - 1 - area->y2;
+  }
   tft.startWrite();
-  tft.setAddrWindow(area->x1, area->y1, w, h);
+  tft.setAddrWindow(x, y, w, h);
   tft.writePixels((lgfx::rgb565_t*)px, w * h);
   tft.endWrite();
   lv_display_flush_ready(disp);
@@ -226,8 +244,8 @@ static void touchCb(lv_indev_t*, lv_indev_data_t* data) {
   wasPressed = pressed;
   if (pressed && !swallow) {
     data->state = LV_INDEV_STATE_PRESSED;
-    data->point.x = x;
-    data->point.y = y;
+    data->point.x = usbBottom ? W - 1 - x : x;
+    data->point.y = usbBottom ? H - 1 - y : y;
 #ifdef CV_TOUCH_LOG
     static uint32_t last;
     if (millis() - last > 150) {

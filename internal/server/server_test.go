@@ -70,3 +70,32 @@ func TestShouldRejectBadRequests(t *testing.T) {
 		t.Fatalf("got %d", r.StatusCode)
 	}
 }
+
+func TestShouldForwardUSBSideAndRejectUnknownOnes(t *testing.T) {
+	// given
+	store := session.New(time.Minute, func(string) string { return "" })
+	s := New(store, nil)
+	var sent []protocol.Config
+	s.Configure = func(c protocol.Config) error { sent = append(sent, c); return nil }
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	post := func(body string) int {
+		r, err := http.Post(srv.URL+"/config", "application/json", bytes.NewReader([]byte(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+
+	// when
+	ok, bad := post(`{"usb":"bottom"}`), post(`{"usb":"left"}`)
+
+	// then
+	if ok != http.StatusNoContent || bad != http.StatusBadRequest {
+		t.Fatalf("status ok=%d bad=%d", ok, bad)
+	}
+	if len(sent) != 1 || sent[0].USB != "bottom" || sent[0].Type != "config" {
+		t.Fatalf("unexpected %+v", sent)
+	}
+}

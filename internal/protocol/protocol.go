@@ -53,14 +53,18 @@ type Config struct {
 	Theme      string `json:"theme,omitempty"`
 	Brightness int    `json:"brightness,omitempty"` // percent, 1–100
 	DimAfter   *int   `json:"dim_after,omitempty"`  // minutes without activity, 0 = never dim
+	USB        string `json:"usb,omitempty"`        // where the USB port points: "top" or "bottom" (screen turned by 180°)
 }
+
+// USBSides are the orientations the firmware knows; the screen stays portrait in both.
+var USBSides = []string{"top", "bottom"}
 
 // MaxDimAfter is the longest dim timeout the firmware accepts (minutes).
 const MaxDimAfter = 1440
 
 // Empty reports whether c changes nothing.
 func (c Config) Empty() bool {
-	return c.Layout == "" && c.Theme == "" && c.Brightness == 0 && c.DimAfter == nil
+	return c.Layout == "" && c.Theme == "" && c.Brightness == 0 && c.DimAfter == nil && c.USB == ""
 }
 
 // Focus is sent by the device (or simulator) when a session is tapped.

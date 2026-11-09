@@ -1,6 +1,8 @@
 // ESP32-2432S024R: 2.4" TFT and XPT2046 touch share the HSPI bus.
 // Verified on the unit: the controller's memory is 320×240 (landscape) with BGR colour order;
-// rotation 5 shows it upright as 240×320 portrait with the USB port at the top.
+// rotation 5 shows it upright as 240×320 portrait with the USB port at the top. Rotation 7 (the
+// same turned by 180°) garbles the picture on this panel, so "USB at the bottom" stays in rotation 5
+// and turns pixels and touch in software (main.cpp).
 #pragma once
 
 #define LGFX_USE_V1

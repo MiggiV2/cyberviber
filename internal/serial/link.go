@@ -45,6 +45,7 @@ type Status struct {
 	Theme      string `json:"theme,omitempty"`
 	Brightness int    `json:"brightness,omitempty"`     // percent
 	DimAfter   *int   `json:"dim_after,omitempty"`      // minutes, 0 = never; nil with firmware before 0.3.0
+	USB        string `json:"usb,omitempty"`            // "top" or "bottom"; empty with firmware before 0.4.0
 	Released   int64  `json:"released_until,omitempty"` // unix seconds, while the port is released
 }
 
@@ -161,7 +162,7 @@ func (l *Link) Run(ctx context.Context) {
 			}
 			l.Logf("serial: device on %s (fw %s)", path, hello.FW)
 			l.setStatus(Status{Connected: true, Port: path, Firmware: hello.FW, Layout: hello.Layout, Theme: hello.Theme,
-				Brightness: hello.Bright, DimAfter: hello.Dim})
+				Brightness: hello.Bright, DimAfter: hello.Dim, USB: hello.USB})
 			rel, err := l.serve(ctx, c)
 			c.close()
 			l.setStatus(Status{})
@@ -202,6 +203,7 @@ type hello struct {
 	Theme  string `json:"theme"`
 	Bright int    `json:"brightness"`
 	Dim    *int   `json:"dim_after"`
+	USB    string `json:"usb"`
 }
 
 type inbound struct {
@@ -372,7 +374,7 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 				var h hello
 				if json.Unmarshal(line, &h) == nil {
 					st := l.Status()
-					st.Firmware, st.Layout, st.Theme, st.Brightness, st.DimAfter = h.FW, h.Layout, h.Theme, h.Bright, h.Dim
+					st.Firmware, st.Layout, st.Theme, st.Brightness, st.DimAfter, st.USB = h.FW, h.Layout, h.Theme, h.Bright, h.Dim, h.USB
 					l.setStatus(st)
 				}
 				send(l.Snapshot())

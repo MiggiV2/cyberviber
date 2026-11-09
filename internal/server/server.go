@@ -199,7 +199,7 @@ func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// config takes {"layout": id, "theme": id, "brightness": 1–100, "dim_after": minutes};
+// config takes {"layout": id, "theme": id, "brightness": 1–100, "dim_after": minutes, "usb": "top"|"bottom"};
 // unknown ids and values out of range are rejected.
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	if s.Configure == nil {
@@ -225,6 +225,10 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.DimAfter != nil && (*c.DimAfter < 0 || *c.DimAfter > protocol.MaxDimAfter) {
 		http.Error(w, fmt.Sprintf("dim_after must be 0–%d minutes", protocol.MaxDimAfter), http.StatusBadRequest)
+		return
+	}
+	if c.USB != "" && !slices.Contains(protocol.USBSides, c.USB) {
+		http.Error(w, "usb must be top or bottom", http.StatusBadRequest)
 		return
 	}
 	c.Type = "config"

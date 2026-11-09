@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#define FW_VERSION "0.3.0"
+#define FW_VERSION "0.4.0"
 
 static constexpr int W = 240, H = 320;
 static constexpr int MAX_SESSIONS = 16;
@@ -97,6 +97,7 @@ void rebuild();
 void onSessions();  // after a sessions message
 void applyConfig(int layout, int theme, bool announce);
 void applyBacklight(int brightness, int dimAfter, bool announce);  // -1 keeps a value
+void applyUsbBottom(int bottom, bool announce);  // 1 = USB port at the bottom, 0 = top, -1 keeps it
 void openSettings();
 void cycleLayout(int step);  // +1 next, -1 previous; shows a toast
 void showToast(const char* text, uint32_t border);
@@ -108,6 +109,8 @@ extern bool gestured;  // the current touch became a swipe: no tap
 void sendFocus(const char* id);
 void sendHello();
 void saveConfig();
+
+extern bool usbBottom;  // portrait turned by 180°, so the USB port points down
 
 // ---------------------------------------------------------------- backlight (backlight.cpp)
 

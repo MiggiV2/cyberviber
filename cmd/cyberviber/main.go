@@ -50,6 +50,7 @@ usage:
   cyberviber theme [id]   show or set the device theme (tokyo-night, nord, … see 'theme list')
   cyberviber brightness [1-100]     show or set the backlight brightness in percent
   cyberviber dim [minutes|off]      show or set when the backlight dims without activity
+  cyberviber usb [top|bottom]       show or set where the USB port points (turns the screen by 180°)
   cyberviber screenshot [file.png]  save the device screen (takes ~20 s)
   cyberviber release [s]  free the device's serial port for s seconds (default 60), e.g. to flash it
   cyberviber install      add hooks to ~/.claude/settings.json and start the launchd agent
@@ -95,6 +96,8 @@ func main() {
 		err = runBrightness(cfg, os.Args[2:])
 	case "dim":
 		err = runDim(cfg, os.Args[2:])
+	case "usb":
+		err = runUSB(cfg, os.Args[2:])
 	case "screenshot":
 		err = runScreenshot(cfg, os.Args[2:])
 	case "install":
@@ -342,6 +345,27 @@ func runDim(cfg config.Config, args []string) error {
 		"dim after: "+fmtDim(&v))
 }
 
+// runUSB shows or sets the screen orientation: portrait with the USB port at the top or bottom.
+func runUSB(cfg config.Config, args []string) error {
+	st, err := deviceStatus(cfg)
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 {
+		if st.USB == "" {
+			fmt.Println("usb: unknown (firmware before 0.4.0)")
+		} else {
+			fmt.Println("usb:", st.USB)
+		}
+		return nil
+	}
+	if !slices.Contains(protocol.USBSides, args[0]) {
+		return fmt.Errorf("usb takes top or bottom, got %q", args[0])
+	}
+	return postConfig(cfg, map[string]any{"usb": args[0]}, func(st serial.Status) bool { return st.USB == args[0] },
+		"usb: "+args[0])
+}
+
 func fmtDim(m *int) string {
 	switch {
 	case m == nil:
@@ -444,6 +468,9 @@ func runStatus(cfg config.Config) error {
 			fmt.Printf("device: %s (fw %s)", dev.Port, dev.Firmware)
 			if dev.DimAfter != nil {
 				fmt.Printf(" · brightness %d%% · dim after %s", dev.Brightness, fmtDim(dev.DimAfter))
+			}
+			if dev.USB != "" {
+				fmt.Printf(" · usb %s", dev.USB)
 			}
 			fmt.Print("\n\n")
 		case dev.Released > 0:

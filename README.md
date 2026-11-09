@@ -31,6 +31,7 @@ cyberviber sim       # browser simulator with live sessions: http://127.0.0.1:73
 cyberviber layout tiling       # waybar, tiling, btop, walker, hyprlock ('cyberviber layout' shows the current one)
 cyberviber theme nord          # 'cyberviber theme list' lists all eleven
 cyberviber brightness 60       # backlight in percent
+cyberviber usb bottom          # turn the screen so the USB port points down (or: top)
 cyberviber dim 15              # dim after 15 min without activity ('off' never dims)
 cyberviber screenshot out.png  # the device screen as PNG (~20 s)
 cyberviber release   # free the device's serial port for 60 s (e.g. to flash it)
@@ -71,7 +72,7 @@ go install ./cmd/cyberviber && ~/go/bin/cyberviber install   # hooks, daemon, Ta
 
 On the old Mac, run `~/go/bin/cyberviber uninstall` if it should stop reporting.
 
-On the device: swipe left/right or press BOOT to cycle layouts, long-press the top bar (or the header of the layout) for the settings screen. Layout, theme, brightness and the dim timeout are kept on the device. After the dim timeout (default 10 min) without a touch the backlight dims; a touch wakes it (that touch does nothing else), and so does a session that newly needs you.
+On the device: swipe left/right or press BOOT to cycle layouts, long-press the top bar (or the header of the layout) for the settings screen. Layout, theme, brightness, the dim timeout and the orientation (USB port at the top or bottom, always portrait) are kept on the device. After the dim timeout (default 10 min) without a touch the backlight dims; a touch wakes it (that touch does nothing else), and so does a session that newly needs you.
 
 Open questions are in spec §7.
 

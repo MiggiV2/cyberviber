@@ -471,6 +471,7 @@ static void onPickTheme(lv_event_t* e) {
 
 static void onPickBright(lv_event_t* e) { applyBacklight((int)(intptr_t)lv_event_get_user_data(e), -1, true); }
 static void onPickDim(lv_event_t* e) { applyBacklight(-1, (int)(intptr_t)lv_event_get_user_data(e), true); }
+static void onPickUsb(lv_event_t* e) { applyUsbBottom((int)(intptr_t)lv_event_get_user_data(e), true); }
 
 // a row of equal chips, the current value in accent
 static void chipRow(lv_obj_t* list, const char* const* names, const int* values, int n, int cur, lv_event_cb_t cb) {
@@ -561,6 +562,12 @@ static void buildSettings() {
   lv_obj_set_style_pad_top(hd, 6, 0);
   chipRow(list, dimNames, dimValues, 5, dimAfterMin, onPickDim);
 
+  static const char* const usbNames[] = {"top", "bottom"};
+  static const int usbValues[] = {0, 1};
+  lv_obj_t* hu = label(list, &cv_11, T->muted, "USB PORT");
+  lv_obj_set_style_pad_top(hu, 6, 0);
+  chipRow(list, usbNames, usbValues, 2, usbBottom ? 1 : 0, onPickUsb);
+
   lv_obj_t* h1 = label(list, &cv_11, T->muted, "LAYOUT · swipe to cycle");
   lv_obj_set_style_pad_top(h1, 6, 0);
   for (int i = 0; i < N_LAYOUTS; i++) {
@@ -622,6 +629,17 @@ void applyBacklight(int brightness, int dimAfter, bool announce) {
   brightPct = brightness;
   dimAfterMin = dimAfter;
   backlightApply();
+  if (settingsObj) buildSettings();
+  saveConfig();
+  if (announce) sendHello();
+}
+
+// turns the picture by 180° (still portrait); touch turns with it
+void applyUsbBottom(int bottom, bool announce) {
+  if (bottom < 0 || (bottom != 0) == usbBottom) return;
+  usbBottom = bottom != 0;  // flushCb and touchCb turn pixels and touch from now on
+  lv_obj_invalidate(lv_screen_active());
+  lv_obj_invalidate(lv_layer_top());
   if (settingsObj) buildSettings();
   saveConfig();
   if (announce) sendHello();
