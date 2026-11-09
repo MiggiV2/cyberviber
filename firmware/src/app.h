@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#define FW_VERSION "0.4.2"
+#define FW_VERSION "0.4.3"
 
 static constexpr int W = 240, H = 320;
 static constexpr int MAX_SESSIONS = 16;

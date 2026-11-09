@@ -63,7 +63,7 @@ footer.notes b{color:var(--fg)}
 .wb-ws{display:flex}
 .wb-ws span{min-width:14px;padding:0 2px;text-align:center;line-height:20px;font-weight:700}
 .wb-ws span.hot{background:var(--red);color:var(--bg)}
-.wb-r{display:flex;gap:6px}
+.wb-r{display:flex;gap:8px;flex:none}
 .wb-list{position:absolute;top:20px;left:0;right:0;bottom:34px}
 .wb-row{height:44px;display:flex;align-items:center;gap:8px;padding-right:8px;border-bottom:1px solid var(--surface)}
 .wb-stripe{width:3px;align-self:stretch;display:block}
@@ -261,8 +261,7 @@ function rWaybar(L){
   return `
   <div class="wb-bar">
     <div class="wb-ws">${L.map((s,i)=>`<span class="tap c-${s.state} ${s.state==='input'?'hot':''}" data-id="${s.id}">${i+1}</span>`).join('') || '<span class="mut">–</span>'}</div>
-    <div class="clk"></div>
-    <div class="wb-r"><span class="mut">◉ ${L.length}</span></div>
+    <div class="wb-r"><span class="clk"></span><span class="mut">◉ ${L.length}</span></div>
   </div>
   <div class="wb-list">${vis.map(s=>`
     <div class="wb-row tap" data-id="${s.id}">

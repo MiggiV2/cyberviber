@@ -19,7 +19,7 @@ static void hline(lv_obj_t* o, lv_border_side_t side, uint32_t color) {
 // ================================================================ A · waybar
 
 static void buildWaybar(lv_obj_t* root) {
-  constexpr int BAR_H = 20, FOOT_H = 34, ROW_H = 44, SIDE_W = 44, MX = 11, MW = W - MX - 8 - SIDE_W;
+  constexpr int BAR_H = 20, TEXT_Y = 3, FOOT_H = 34, ROW_H = 44, SIDE_W = 44, MX = 11, MW = W - MX - 8 - SIDE_W;
   int count[4];
   countStates(count);
 
@@ -33,7 +33,7 @@ static void buildWaybar(lv_obj_t* root) {
     lv_obj_t* l = label(bar, &cv_11b, st == S_INPUT ? T->bg : stateColor(st));
     lv_label_set_text_fmt(l, "%d", i + 1);
     lv_obj_set_size(l, 14, BAR_H - 1);
-    lv_obj_set_style_pad_top(l, 3, 0);
+    lv_obj_set_style_pad_top(l, TEXT_Y, 0);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     if (st == S_INPUT) {
       lv_obj_set_style_bg_color(l, C(T->red), 0);
@@ -44,11 +44,13 @@ static void buildWaybar(lv_obj_t* root) {
     lv_obj_add_flag(l, LV_OBJ_FLAG_EVENT_BUBBLE);  // long-press still reaches the bar
     x += 14;
   }
-  if (!nSessions) lv_obj_set_pos(label(bar, &cv_11b, T->muted, "–"), 6, 3);
-  lv_obj_align(clockLabel(bar, &cv_11, T->fg), LV_ALIGN_CENTER, 0, 0);
+  if (!nSessions) lv_obj_set_pos(label(bar, &cv_11b, T->muted, "–"), 6, TEXT_Y);
+  // Clock sits right, next to the count: centred it collided with 8+ workspace numbers.
   lv_obj_t* cnt = label(bar, &cv_11, T->muted);
   lv_label_set_text_fmt(cnt, "◉ %d", nSessions);
-  lv_obj_align(cnt, LV_ALIGN_RIGHT_MID, -4, 0);
+  // Same top offset as the workspace numbers (pad_top), so all text shares one baseline.
+  lv_obj_align(cnt, LV_ALIGN_TOP_RIGHT, -4, TEXT_Y);
+  lv_obj_align(clockLabel(bar, &cv_11, T->fg), LV_ALIGN_TOP_RIGHT, -4 - textWidth(cnt) - 8, TEXT_Y);
 
   lv_obj_t* list = scroller(root);
   lv_obj_set_size(list, W, H - BAR_H - FOOT_H);
