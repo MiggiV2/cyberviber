@@ -27,6 +27,9 @@ func (s *Store) Sync(list []Discovered) bool {
 	defer s.mu.Unlock()
 	changed := false
 	for _, d := range list {
+		if d.PID != 0 && s.dropOthersOf(d.PID, d.ID) {
+			changed = true
+		}
 		ss, ok := s.sessions[d.ID]
 		if !ok {
 			ss = &Session{ID: d.ID, Cwd: d.Cwd, Name: filepath.Base(d.Cwd), PID: d.PID, TTY: d.TTY,

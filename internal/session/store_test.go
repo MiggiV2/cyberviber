@@ -245,9 +245,11 @@ func TestShouldDropSessionsWithoutPidAfterLongSilence(t *testing.T) {
 func TestShouldSortByPriorityThenMostRecent(t *testing.T) {
 	// given
 	s := newStore()
+	pid := 4242
 	add := func(id, name string, at time.Duration) {
+		pid++
 		e := ev(name, at)
-		e.SessionID, e.Cwd = id, "/p/"+id
+		e.SessionID, e.Cwd, e.PID = id, "/p/"+id, pid
 		s.Apply(e)
 	}
 	add("working-old", event.UserPromptSubmit, 1*time.Second)
@@ -295,5 +297,21 @@ func TestShouldLoadMissingFileAsEmpty(t *testing.T) {
 	s := newStore()
 	if err := s.Load(filepath.Join(t.TempDir(), "nope.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestShouldReplaceSessionWhenItsProcessReportsAnotherID(t *testing.T) {
+	// given the picker session of `claude --resume`
+	s := newStore()
+	s.Apply(ev(event.SessionStart, 0))
+
+	// when the same process fires a hook for the picked session
+	e := ev(event.UserPromptSubmit, time.Minute)
+	e.SessionID = "s2"
+	s.Apply(e)
+
+	// then
+	if got := only(t, s); got.ID != "s2" {
+		t.Fatalf("%+v", got)
 	}
 }

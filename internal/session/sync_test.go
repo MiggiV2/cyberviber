@@ -168,3 +168,19 @@ func TestShouldTakeMuxInfoFromDiscovery(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestShouldReplaceSessionWhenItsProcessResumesAnother(t *testing.T) {
+	// given the picker session of `claude --resume`
+	s := newStore()
+	s.Sync([]Discovered{disc("idle", 0)})
+
+	// when the same process now registers the picked session
+	resumed := disc("idle", time.Minute)
+	resumed.ID = "s2"
+	changed := s.Sync([]Discovered{resumed})
+
+	// then
+	if got := only(t, s); !changed || got.ID != "s2" {
+		t.Fatalf("changed=%v %+v", changed, got)
+	}
+}

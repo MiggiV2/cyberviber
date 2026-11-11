@@ -77,6 +77,7 @@ func (s *Store) Apply(e event.Event) {
 	ss.LastEvent = e.Time
 	if e.PID != 0 {
 		ss.PID, ss.TTY = e.PID, e.TTY
+		s.dropOthersOf(e.PID, e.SessionID)
 	}
 	if !e.Mux.IsZero() {
 		ss.Mux = e.Mux
@@ -120,6 +121,18 @@ func (s *Store) Apply(e event.Event) {
 		ss.Branch = s.branchOf(ss.Cwd)
 		set(Ready, doneText(len(ss.Edited)))
 	}
+}
+
+// dropOthersOf removes sessions a process has left, e.g. the picker session of `claude --resume`.
+func (s *Store) dropOthersOf(pid int, keep string) bool {
+	dropped := false
+	for id, ss := range s.sessions {
+		if id != keep && ss.PID == pid {
+			delete(s.sessions, id)
+			dropped = true
+		}
+	}
+	return dropped
 }
 
 func needsInput(e event.Event) bool {
