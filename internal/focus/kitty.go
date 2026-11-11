@@ -1,7 +1,7 @@
 package focus
 
 import (
-	"bufio"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,35 +11,32 @@ import (
 type kitty struct{}
 
 // Focus uses kitty's remote control (`allow_remote_control` + `listen_on unix:…` in kitty.conf).
-// The socket path gets kitty's PID appended, so it is read from the running kitty with lsof.
-// `pid:` matches a window's child process, which is the tab root of the chain.
+// kitty exports the socket as KITTY_LISTEN_ON to the processes in its windows; `pid:` matches a
+// window's child process, which is the tab root of the chain.
 func (kitty) Focus(f *Focuser, _ session.Session, t Terminal, _ bool) (int, string) {
-	defer f.Run("open", "-a", t.Bundle)
-	socks := kittySockets(f, t.AppPID)
-	if len(socks) == 0 {
+	defer f.activate(t)
+	sock := ""
+	for _, pid := range t.Chain {
+		if sock = f.Env(pid)["KITTY_LISTEN_ON"]; sock != "" {
+			break
+		}
+	}
+	if sock == "" {
 		return 0, "no-remote-control"
 	}
 	match := make([]string, len(t.Chain))
 	for i, pid := range t.Chain {
 		match[i] = "pid:" + strconv.Itoa(pid)
 	}
-	kitten := t.Bundle + "/Contents/MacOS/kitten"
-	for _, sock := range socks {
-		if _, err := f.Run(kitten, "@", "--to", "unix:"+sock, "focus-window", "--match", strings.Join(match, " or ")); err == nil {
-			return 0, ""
-		}
+	if _, err := f.Run(kitten(t), "@", "--to", sock, "focus-window", "--match", strings.Join(match, " or ")); err != nil {
+		return 0, "tab-not-found"
 	}
-	return 0, "tab-not-found"
+	return 0, ""
 }
 
-func kittySockets(f *Focuser, pid int) []string {
-	out, _ := f.Run("lsof", "-a", "-p", strconv.Itoa(pid), "-U", "-F", "n")
-	var socks []string
-	sc := bufio.NewScanner(strings.NewReader(string(out)))
-	for sc.Scan() {
-		if path, ok := strings.CutPrefix(sc.Text(), "n/"); ok {
-			socks = append(socks, "/"+path)
-		}
+func kitten(t Terminal) string {
+	if strings.HasSuffix(t.Bundle, ".app") {
+		return t.Bundle + "/Contents/MacOS/kitten"
 	}
-	return socks
+	return filepath.Join(filepath.Dir(t.Bundle), "kitten")
 }

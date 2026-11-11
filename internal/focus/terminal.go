@@ -6,6 +6,7 @@
 package focus
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/d135-1r43/cyberviber/internal/proc"
@@ -14,13 +15,13 @@ import (
 // Terminal is the terminal app hosting an anchor process.
 type Terminal struct {
 	App    string // lower-cased app bundle name, e.g. "tabby", "ghostty"
-	Bundle string // e.g. /Applications/Tabby.app
+	Bundle string // macOS: /Applications/Tabby.app; Linux: the executable, e.g. /usr/bin/kitty
 	AppPID int
 	Chain  []int  // anchor … tab root (the process right below the app)
 	TTY    string // the anchor's TTY (outer TTY)
 }
 
-// ResolveTerminal walks up from the anchor process until its parent is a macOS app bundle.
+// ResolveTerminal walks up from the anchor process until its parent is a terminal app.
 func ResolveTerminal(anchor int, get func(int) (proc.Proc, error)) (Terminal, bool) {
 	var t Terminal
 	pid := anchor
@@ -37,10 +38,8 @@ func ResolveTerminal(anchor int, get func(int) (proc.Proc, error)) (Terminal, bo
 		if err != nil {
 			return Terminal{}, false
 		}
-		if bundle, ok := appBundle(parent.Exe); ok {
-			t.Bundle, t.AppPID = bundle, parent.PID
-			name := strings.TrimSuffix(bundle[strings.LastIndex(bundle, "/")+1:], ".app")
-			t.App = strings.ToLower(name)
+		if app, bundle, ok := appOf(parent.Exe); ok {
+			t.App, t.Bundle, t.AppPID = app, bundle, parent.PID
 			return t, true
 		}
 		pid = p.PPID
@@ -48,10 +47,17 @@ func ResolveTerminal(anchor int, get func(int) (proc.Proc, error)) (Terminal, bo
 	return Terminal{}, false
 }
 
-func appBundle(exe string) (string, bool) {
-	i := strings.Index(exe, ".app/Contents/MacOS/")
-	if i < 0 {
-		return "", false
+// linuxTerminals are terminal emulators recognised by executable name; macOS apps by their bundle.
+var linuxTerminals = map[string]bool{"kitty": true, "ghostty": true, "tabby": true, "alacritty": true,
+	"foot": true, "wezterm-gui": true, "konsole": true, "gnome-terminal-server": true, "xterm": true}
+
+func appOf(exe string) (app, bundle string, ok bool) {
+	if i := strings.Index(exe, ".app/Contents/MacOS/"); i >= 0 {
+		bundle = exe[:i+len(".app")]
+		return strings.ToLower(strings.TrimSuffix(filepath.Base(bundle), ".app")), bundle, true
 	}
-	return exe[:i+len(".app")], true
+	if name := filepath.Base(exe); linuxTerminals[name] {
+		return name, exe, true
+	}
+	return "", "", false
 }

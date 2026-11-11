@@ -156,6 +156,14 @@ Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only)
 
 Needs `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` in `kitty.conf`; kitty appends its PID to the path, so the daemon reads the listening socket of the kitty process with `lsof -a -p <kitty> -U`. Then `kitten @ --to unix:<sock> focus-window --match "pid:<anchor> or … or pid:<tab root>"` (a window's `pid` is its child, the tab root) and `open -a kitty.app`. Without a socket: activate only, reason `no-remote-control`.
 
+#### Linux (Hyprland)
+
+- Processes from `/proc/<pid>/{stat,cmdline,environ,exe}`; TTY names from `tty_nr` (`pts/3`).
+- Terminal apps are recognised by executable name (`kitty`, `ghostty`, …) instead of an app bundle.
+- Multiplexer clients from `ss -xpH`: the server end of a connection shows the socket path and its inode, the client end shows that inode as its peer. zellij sockets live under `$XDG_RUNTIME_DIR/zellij/…`.
+- App activation: `hyprctl -i 0 dispatch focuswindow pid:<terminal pid>` (Wayland does not let apps raise themselves). Ghostty has no AppleScript there, so only the window is raised.
+- Daemon: systemd user unit `cyberviber.service`; serial ports `/dev/ttyUSB*`, `/dev/ttyACM*`.
+
 #### Adding a multiplexer or terminal
 
 - **Multiplexer:** a row in `internal/mux` (`kinds`: name, session and pane env vars, optional display label), and a `focus.Multiplexer` registered in `multiplexers`. It focuses the pane and returns the PIDs of the attached clients (helper: `socketClients`, lsof peer matching on the server's socket path). A test fails if a kind has no `Multiplexer`.

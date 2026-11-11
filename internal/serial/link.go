@@ -27,7 +27,7 @@ type Port interface {
 }
 
 // Patterns are the device names of the USB-UART bridges used on ESP32 boards (CH340, CP210x).
-var Patterns = []string{"/dev/cu.usbserial-*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*"}
+var Patterns = []string{"/dev/cu.usbserial-*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*", "/dev/ttyUSB*", "/dev/ttyACM*"}
 
 const (
 	helloTimeout = 6 * time.Second // the board may reset on open; boot takes ~1 s

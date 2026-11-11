@@ -113,6 +113,24 @@ func TestShouldRenderLaunchAgent(t *testing.T) {
 	}
 }
 
+func TestShouldRenderSystemdUnit(t *testing.T) {
+	u := SystemdUnit("/home/m/go/bin/cyber viber")
+	for _, want := range []string{`ExecStart="/home/m/go/bin/cyber viber" daemon`, "Restart=always", "WantedBy=default.target"} {
+		if !strings.Contains(u, want) {
+			t.Errorf("unit missing %q:\n%s", want, u)
+		}
+	}
+}
+
+func TestShouldPickTabbyPluginsDirPerOS(t *testing.T) {
+	if d := tabbyPluginsDir("linux", "/home/m"); d != "/home/m/.config/tabby/plugins" {
+		t.Errorf("linux: %s", d)
+	}
+	if d := tabbyPluginsDir("darwin", "/Users/m"); d != "/Users/m/Library/Application Support/tabby/plugins" {
+		t.Errorf("darwin: %s", d)
+	}
+}
+
 func TestShouldInstallAndRemoveTabbyPlugin(t *testing.T) {
 	// given
 	dir := t.TempDir()

@@ -1,6 +1,8 @@
 package focus
 
 import (
+	"runtime"
+	"strconv"
 	"sync"
 
 	"github.com/d135-1r43/cyberviber/internal/mux"
@@ -41,6 +43,7 @@ type Focuser struct {
 	Env      func(pid int) map[string]string
 	Run      func(name string, args ...string) ([]byte, error)
 	TabbyDir string
+	GOOS     string // defaults to runtime.GOOS
 
 	mu         sync.Mutex
 	ghosttyIDs map[string]string // session id → Ghostty terminal id
@@ -82,11 +85,28 @@ func (f *Focuser) Focus(id string) Result {
 
 	app, ok := apps[term.App]
 	if !ok {
-		f.Run("open", "-a", term.Bundle)
+		f.activate(term)
 		res.Reason = "unknown-terminal"
 		return res
 	}
 	res.Tab, res.Reason = app.Focus(f, s, term, !loc.IsZero())
 	res.OK = res.Reason == ""
 	return res
+}
+
+func (f *Focuser) goos() string {
+	if f.GOOS != "" {
+		return f.GOOS
+	}
+	return runtime.GOOS
+}
+
+// activate brings the terminal app to the front. On Linux only Hyprland is supported: Wayland
+// does not let an app raise itself, the compositor has to.
+func (f *Focuser) activate(t Terminal) {
+	if f.goos() == "darwin" {
+		f.Run("open", "-a", t.Bundle)
+		return
+	}
+	f.Run("hyprctl", "-i", "0", "dispatch", "focuswindow", "pid:"+strconv.Itoa(t.AppPID))
 }

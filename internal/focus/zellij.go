@@ -14,7 +14,7 @@ type zellij struct{}
 // attached client's own binary (same version); launchd agents have a minimal PATH.
 func (zellij) Focus(f *Focuser, loc mux.Location) []int {
 	clients := f.socketClients("zellij", func(path string) bool {
-		return strings.Contains(path, "/zellij-") && filepath.Base(path) == loc.Session
+		return strings.Contains(path, "/zellij") && filepath.Base(path) == loc.Session
 	})
 	bin := ""
 	if len(clients) > 0 {

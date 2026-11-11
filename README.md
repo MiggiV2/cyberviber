@@ -30,7 +30,18 @@ listen_on unix:/tmp/kitty
 
 `cyberviber uninstall` removes all of it.
 
-## Use
+## Install (Linux, Hyprland)
+
+Target setup: Arch, Hyprland, kitty, herdr (unit-tested and run in a Linux container, not yet on a real desktop). Needs `ss` (iproute2) and `hyprctl`.
+
+```sh
+go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest   # or a linux release binary
+~/go/bin/cyberviber install
+sudo usermod -aG uucp "$USER"   # access to /dev/ttyUSB0 (Arch; Debian/Ubuntu: dialout), log in again
+```
+
+`cyberviber install` does the same as on macOS, but runs the daemon as the systemd user service `cyberviber.service` (logs: `journalctl --user -u cyberviber`). For kitty, add the two remote-control lines above (`listen_on unix:@kitty` also works on Linux). The terminal is raised with `hyprctl dispatch focuswindow pid:<terminal>`; other compositors only get the pane and tab focused, not the window.
+
 
 ```sh
 cyberviber status    # session table

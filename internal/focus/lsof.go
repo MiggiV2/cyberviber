@@ -69,15 +69,77 @@ func ParseLsof(out string) map[string][]int {
 	return clients
 }
 
+// ParseSS maps unix socket paths to the PIDs of processes named command connected to them, from
+// the output of `ss -xpH`. The server side of a connection shows the path and its inode; the
+// client side shows that inode as its peer.
+func ParseSS(out, command string) map[string][]int {
+	type end struct {
+		path        string
+		inode, peer string
+		pids        []int
+	}
+	var ends []end
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 8 || !strings.HasPrefix(f[0], "u_") {
+			continue
+		}
+		e := end{path: f[4], inode: f[5], peer: f[7]}
+		for _, users := range f[8:] {
+			for _, u := range strings.Split(users, "),(") {
+				if !strings.Contains(u, `"`+command+`"`) {
+					continue
+				}
+				if _, v, ok := strings.Cut(u, "pid="); ok {
+					v, _, _ = strings.Cut(v, ",")
+					if pid, err := strconv.Atoi(v); err == nil {
+						e.pids = append(e.pids, pid)
+					}
+				}
+			}
+		}
+		ends = append(ends, e)
+	}
+	pathOf := map[string]string{}
+	for _, e := range ends {
+		if strings.HasPrefix(e.path, "/") {
+			pathOf[e.inode] = e.path
+		}
+	}
+	clients := map[string][]int{}
+	for _, e := range ends {
+		path, ok := pathOf[e.peer]
+		if !ok || e.path != "*" {
+			continue
+		}
+		for _, pid := range e.pids {
+			if !slices.Contains(clients[path], pid) {
+				clients[path] = append(clients[path], pid)
+			}
+		}
+	}
+	return clients
+}
+
 // socketClients lists the processes named command that are connected to a unix socket whose path
 // matches, lowest PID first.
 func (f *Focuser) socketClients(command string, match func(path string) bool) []int {
-	out, err := f.Run("lsof", "-U", "-a", "-c", command, "-F", "pfdn")
-	if err != nil && len(out) == 0 {
-		log.Printf("focus: lsof -c %s: %v", command, err)
+	var clients map[string][]int
+	if f.goos() == "darwin" {
+		out, err := f.Run("lsof", "-U", "-a", "-c", command, "-F", "pfdn")
+		if err != nil && len(out) == 0 {
+			log.Printf("focus: lsof -c %s: %v", command, err)
+		}
+		clients = ParseLsof(string(out))
+	} else {
+		out, err := f.Run("ss", "-xpH")
+		if err != nil {
+			log.Printf("focus: ss: %v", err)
+		}
+		clients = ParseSS(string(out), command)
 	}
 	var pids []int
-	for path, ps := range ParseLsof(string(out)) {
+	for path, ps := range clients {
 		if match(path) {
 			pids = append(pids, ps...)
 		}
