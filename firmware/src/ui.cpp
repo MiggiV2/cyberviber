@@ -365,7 +365,7 @@ static void buildWait() {
   lv_obj_set_size(waitBox, W, H);
   lv_obj_add_flag(waitBox, LV_OBJ_FLAG_CLICKABLE);  // swallow taps
   int before = nDyn;
-  lv_obj_t* b = centerBlock(waitBox, "waiting for Mac…", "cyberviber daemon\nover USB");
+  lv_obj_t* b = centerBlock(waitBox, "waiting for computer…", "cyberviber daemon\nover USB");
   lv_obj_center(b);
   waitSpin = dyn[before].obj;  // the spinner is not part of the rebuilt screen
   nDyn = before;

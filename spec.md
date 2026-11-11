@@ -187,7 +187,7 @@ The board is plugged into the Mac anyway for power, so the same cable carries th
 - **Framing:** newline-delimited JSON (one message per line, UTF-8), **115200 baud** 8N1. Lines that don't parse as JSON are ignored on both sides (ESP32 boot ROM and log output share UART0).
 - **Discovery:** the daemon scans matching ports, opens each one and waits for a `hello` from the firmware. The first port that answers is the device. It rescans on unplug and reconnects automatically.
 - **Auto-reset:** opening the port toggles DTR/RTS, which resets the ESP32 on this board. The daemon opens the port with DTR/RTS held inactive; if the board resets anyway, it just sends `hello` again after boot and receives the full state.
-- **Liveness:** the daemon sends the full session list on every change and at least every 5 s. If the device hears nothing for 15 s it shows "waiting for Mac…".
+- **Liveness:** the daemon sends the full session list on every change and at least every 5 s. If the device hears nothing for 15 s it shows "waiting for computer…".
 - **Firmware logging:** off by default in release builds, so the line stream stays clean.
 - **Flashing:** the daemon holds the serial port open. `cyberviber release [s]` (`POST /release`) frees it for `pio run -t upload`; the daemon reattaches afterwards. **Verified:** release → flash → reattach.
 - **Handshake (implemented):** the daemon sends `{"type":"hello","daemon":"cyberviber",…}` every second while probing a port; the firmware answers with its own `hello` (and also says hello once after boot). Probing gives up after 6 s per port. A `log` message from the device (debug builds) goes to the daemon log. `GET /device` reports the connection; `cyberviber status` prints it.
@@ -307,7 +307,7 @@ Rules: state colours always come from `red`/`yellow`/`green`/`muted`; `accent` i
 
 - The BOOT button (GPIO0) cycles to the next layout, like a left swipe.
 - Tap a session (row, tile, card, chip, waybar number) → `focus` message, the item flashes in `accent`, a mako-style toast shows `⟶ Ghostty · tab 6` for ~1.5 s.
-- Connection state: a "waiting for Mac…" screen in the current theme until the first message arrives, and again after 15 s of silence.
+- Connection state: a "waiting for computer…" screen in the current theme until the first message arrives, and again after 15 s of silence.
 - Backlight dims after N minutes (`dim_after`, default 10, 0 = never) without activity: a touch, or a session newly in `input`. Either wakes it; the waking touch does nothing else.
 
 ### 4.6 Rendering constraints (LVGL)
