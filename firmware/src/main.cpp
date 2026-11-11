@@ -116,7 +116,9 @@ static void handleSessions(JsonDocument& doc) {
     copyUtf8(d.branch, s["branch"], sizeof d.branch);
     copyUtf8(d.activity, s["activity"], sizeof d.activity);
     copyUtf8(d.terminal, s["terminal"], sizeof d.terminal);
-    copyUtf8(d.zellij, s["zellij"], sizeof d.zellij);
+    copyUtf8(d.mux, s["mux"], sizeof d.mux);
+    copyUtf8(d.muxShort, s["mux_short"], sizeof d.muxShort);
+    copyUtf8(d.muxSession, s["mux_session"], sizeof d.muxSession);
     d.state = parseState(s["state"]);
     d.since = s["since"] | (int64_t)0;
     d.tab = s["tab"] | 0;

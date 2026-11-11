@@ -3,6 +3,8 @@ package session
 import (
 	"path/filepath"
 	"time"
+
+	"github.com/d135-1r43/cyberviber/internal/mux"
 )
 
 // Discovered is a session found outside the hooks (Claude Code's session registry).
@@ -15,7 +17,7 @@ type Discovered struct {
 	Status   string // "busy" | "idle"
 	StatusAt time.Time
 
-	ZellijSession, ZellijPane string // from the process environment
+	Mux mux.Location // from the process environment
 }
 
 // Sync adds sessions that have not fired a hook yet and applies registry status changes that
@@ -35,7 +37,7 @@ func (s *Store) Sync(list []Discovered) bool {
 			if d.Name != "" {
 				ss.Name = d.Name
 			}
-			ss.ZellijSession, ss.ZellijPane = d.ZellijSession, d.ZellijPane
+			ss.Mux = d.Mux
 			ss.Branch = s.branchOf(d.Cwd)
 			s.sessions[d.ID] = ss
 			changed = true
@@ -45,8 +47,8 @@ func (s *Store) Sync(list []Discovered) bool {
 			ss.Name = d.Name
 			changed = true
 		}
-		if ss.ZellijSession == "" && d.ZellijSession != "" {
-			ss.ZellijSession, ss.ZellijPane = d.ZellijSession, d.ZellijPane
+		if ss.Mux.IsZero() && !d.Mux.IsZero() {
+			ss.Mux = d.Mux
 			changed = true
 		}
 		if ss.PID == 0 && d.PID != 0 {

@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/d135-1r43/cyberviber/internal/session"
 )
 
 // Ghostty (≥ 1.3) is scripted via AppleScript. Its terminals expose id, name and working directory
@@ -107,4 +109,14 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+type ghostty struct{}
+
+func (ghostty) Focus(f *Focuser, s session.Session, t Terminal, inMux bool) (int, string) {
+	if f.focusGhostty(s.ID, s.Cwd, t.TTY, inMux) {
+		return 0, ""
+	}
+	f.Run("open", "-a", t.Bundle)
+	return 0, "tab-not-found"
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 )
 
 var t0 = time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
@@ -270,7 +271,7 @@ func TestShouldPersistAndRestore(t *testing.T) {
 	// given
 	s := newStore()
 	e := ev(event.SessionStart, 0)
-	e.ZellijSession, e.ZellijPane = "sincere-drum", "23"
+	e.Mux = mux.Location{Kind: "zellij", Session: "sincere-drum", Pane: "23"}
 	s.Apply(e)
 	path := filepath.Join(t.TempDir(), "sessions.json")
 
@@ -285,7 +286,7 @@ func TestShouldPersistAndRestore(t *testing.T) {
 
 	// then
 	got := only(t, r)
-	if got.ID != "s1" || got.ZellijSession != "sincere-drum" || got.ZellijPane != "23" || got.State != Ready {
+	if got.ID != "s1" || got.Mux != (mux.Location{Kind: "zellij", Session: "sincere-drum", Pane: "23"}) || got.State != Ready {
 		t.Fatalf("restored %+v", got)
 	}
 }

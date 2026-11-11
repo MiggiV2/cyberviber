@@ -52,7 +52,7 @@ static void termName(char* out, size_t n, const Session& s) {
 void fmtWhere(char* out, size_t n, const Session& s) {
   char term[16], loc[48] = "";
   termName(term, sizeof term, s);
-  if (s.zellij[0]) snprintf(loc, sizeof loc, "zellij %s", s.zellij);
+  if (s.mux[0]) snprintf(loc, sizeof loc, "%s %s", s.mux, s.muxSession);
   else if (s.tab) snprintf(loc, sizeof loc, "tab %d", s.tab);
   if (term[0] && loc[0]) snprintf(out, n, "%s · %s", term, loc);
   else if (term[0] || loc[0]) snprintf(out, n, "%s", term[0] ? term : loc);
@@ -61,7 +61,7 @@ void fmtWhere(char* out, size_t n, const Session& s) {
 
 // "zj:work" / "tab 3" / "Ghostty"
 void fmtWhereShort(char* out, size_t n, const Session& s) {
-  if (s.zellij[0]) snprintf(out, n, "zj:%s", s.zellij);
+  if (s.mux[0]) snprintf(out, n, "%s:%s", s.muxShort, s.muxSession);
   else if (s.tab) snprintf(out, n, "tab %d", s.tab);
   else termName(out, n, s);
 }
@@ -411,7 +411,9 @@ static uint32_t signature() {
     mix(s.branch, strlen(s.branch));
     mix(s.activity, strlen(s.activity));
     mix(s.terminal, strlen(s.terminal));
-    mix(s.zellij, strlen(s.zellij));
+    mix(s.mux, strlen(s.mux));
+    mix(s.muxShort, strlen(s.muxShort));
+    mix(s.muxSession, strlen(s.muxSession));
     mix(&s.state, sizeof s.state);
     mix(&s.since, sizeof s.since);
     mix(&s.tab, sizeof s.tab);

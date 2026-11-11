@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/proc"
 )
 
@@ -37,8 +38,7 @@ func Build(r io.Reader, getenv func(string) string, agent func() (proc.Proc, boo
 	if a, ok := agent(); ok {
 		e.PID, e.TTY = a.PID, a.TTY
 	}
-	e.ZellijSession = getenv("ZELLIJ_SESSION_NAME")
-	e.ZellijPane = getenv("ZELLIJ_PANE_ID")
+	e.Mux, _ = mux.Detect(getenv)
 	return e, nil
 }
 

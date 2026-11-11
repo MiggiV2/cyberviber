@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 )
 
 type State string
@@ -30,22 +31,21 @@ var priority = map[State]int{Input: 0, Ready: 1, Working: 2, Idle: 3}
 const orphanAfter = 12 * time.Hour
 
 type Session struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Cwd           string    `json:"cwd"`
-	Branch        string    `json:"branch,omitempty"`
-	State         State     `json:"state"`
-	Activity      string    `json:"activity"`
-	Since         time.Time `json:"since"`
-	LastEvent     time.Time `json:"last_event"`
-	PID           int       `json:"pid,omitempty"`
-	TTY           string    `json:"tty,omitempty"`
-	ZellijSession string    `json:"zellij_session,omitempty"`
-	ZellijPane    string    `json:"zellij_pane,omitempty"`
-	Terminal      string    `json:"terminal,omitempty"`
-	Tab           int       `json:"tab,omitempty"`
-	Ctx           int       `json:"ctx,omitempty"`
-	Edited        []string  `json:"edited,omitempty"`
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Cwd       string       `json:"cwd"`
+	Branch    string       `json:"branch,omitempty"`
+	State     State        `json:"state"`
+	Activity  string       `json:"activity"`
+	Since     time.Time    `json:"since"`
+	LastEvent time.Time    `json:"last_event"`
+	PID       int          `json:"pid,omitempty"`
+	TTY       string       `json:"tty,omitempty"`
+	Mux       mux.Location `json:"mux,omitzero"`
+	Terminal  string       `json:"terminal,omitempty"`
+	Tab       int          `json:"tab,omitempty"`
+	Ctx       int          `json:"ctx,omitempty"`
+	Edited    []string     `json:"edited,omitempty"`
 }
 
 type Store struct {
@@ -78,8 +78,8 @@ func (s *Store) Apply(e event.Event) {
 	if e.PID != 0 {
 		ss.PID, ss.TTY = e.PID, e.TTY
 	}
-	if e.ZellijSession != "" {
-		ss.ZellijSession, ss.ZellijPane = e.ZellijSession, e.ZellijPane
+	if !e.Mux.IsZero() {
+		ss.Mux = e.Mux
 	}
 
 	set := func(st State, activity string) {

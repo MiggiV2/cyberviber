@@ -29,6 +29,7 @@ import (
 	"github.com/d135-1r43/cyberviber/internal/gitinfo"
 	"github.com/d135-1r43/cyberviber/internal/hook"
 	"github.com/d135-1r43/cyberviber/internal/install"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/proc"
 	"github.com/d135-1r43/cyberviber/internal/protocol"
 	"github.com/d135-1r43/cyberviber/internal/registry"
@@ -231,9 +232,10 @@ func discover() []session.Discovered {
 			continue
 		}
 		env := proc.Env(e.PID)
+		loc, _ := mux.Detect(func(k string) string { return env[k] })
 		out = append(out, session.Discovered{ID: e.SessionID, Cwd: e.Cwd, Name: e.Name, PID: e.PID, TTY: p.TTY,
 			Status: e.Status, StatusAt: e.StatusAt,
-			ZellijSession: env["ZELLIJ_SESSION_NAME"], ZellijPane: env["ZELLIJ_PANE_ID"]})
+			Mux: loc})
 	}
 	return out
 }
@@ -485,10 +487,10 @@ func runStatus(cfg config.Config) error {
 	}
 	glyph := map[string]string{"input": "!", "ready": "✓", "working": "✻", "idle": "◦"}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "\tNAME\tBRANCH\tSTATE\tTIME\tZELLIJ\tACTIVITY")
+	fmt.Fprintln(w, "\tNAME\tBRANCH\tSTATE\tTIME\tMUX\tACTIVITY")
 	for _, s := range msg.Sessions {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", glyph[s.State], s.Name, s.Branch, s.State,
-			elapsed(msg.Now-s.Since), s.Zellij, s.Activity)
+			elapsed(msg.Now-s.Since), strings.TrimSpace(s.Mux+" "+s.MuxSession), s.Activity)
 	}
 	return w.Flush()
 }

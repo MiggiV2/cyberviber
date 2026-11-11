@@ -8,16 +8,18 @@ import (
 )
 
 type Session struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Branch   string `json:"branch,omitempty"`
-	State    string `json:"state"`
-	Activity string `json:"activity"`
-	Since    int64  `json:"since"`
-	Ctx      int    `json:"ctx,omitempty"`
-	Terminal string `json:"terminal,omitempty"`
-	Tab      int    `json:"tab,omitempty"`
-	Zellij   string `json:"zellij,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Branch     string `json:"branch,omitempty"`
+	State      string `json:"state"`
+	Activity   string `json:"activity"`
+	Since      int64  `json:"since"`
+	Ctx        int    `json:"ctx,omitempty"`
+	Terminal   string `json:"terminal,omitempty"`
+	Tab        int    `json:"tab,omitempty"`
+	Mux        string `json:"mux,omitempty"`
+	MuxShort   string `json:"mux_short,omitempty"`
+	MuxSession string `json:"mux_session,omitempty"`
 }
 
 type Sessions struct {
@@ -33,7 +35,8 @@ func FromSessions(now time.Time, list []session.Session) Sessions {
 	for _, s := range list {
 		out.Sessions = append(out.Sessions, Session{
 			ID: s.ID, Name: s.Name, Branch: s.Branch, State: string(s.State), Activity: s.Activity,
-			Since: s.Since.Unix(), Ctx: s.Ctx, Terminal: s.Terminal, Tab: s.Tab, Zellij: s.ZellijSession,
+			Since: s.Since.Unix(), Ctx: s.Ctx, Terminal: s.Terminal, Tab: s.Tab,
+			Mux: s.Mux.Kind, MuxShort: s.Mux.Short(), MuxSession: s.Mux.Label(),
 		})
 	}
 	return out

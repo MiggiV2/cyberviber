@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 )
 
 func disc(status string, at time.Duration) Discovered {
@@ -158,12 +159,12 @@ func TestShouldKeepFolderNameWhenRegistryHasNone(t *testing.T) {
 	}
 }
 
-func TestShouldTakeZellijInfoFromDiscovery(t *testing.T) {
+func TestShouldTakeMuxInfoFromDiscovery(t *testing.T) {
 	s := newStore()
 	d := disc("idle", 0)
-	d.ZellijSession, d.ZellijPane = "sincere-drum", "11"
+	d.Mux = mux.Location{Kind: "zellij", Session: "sincere-drum", Pane: "11"}
 	s.Sync([]Discovered{d})
-	if got := only(t, s); got.ZellijSession != "sincere-drum" || got.ZellijPane != "11" {
+	if got := only(t, s); got.Mux != (mux.Location{Kind: "zellij", Session: "sincere-drum", Pane: "11"}) {
 		t.Fatalf("%+v", got)
 	}
 }

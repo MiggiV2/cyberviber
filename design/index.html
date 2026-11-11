@@ -209,11 +209,11 @@ const ALL = [
   {id:1,name:'cyberviber',branch:'main',term:'Ghostty',tab:1,state:'input',act:'Allow Bash: pio run -t upload?',since:42,ctx:38},
   {id:2,name:'explore-api',branch:'feat/oauth',term:'Ghostty',tab:2,state:'working',act:'Editing AuthResource.java',since:187,ctx:64},
   {id:3,name:'dotfiles',branch:'main',term:'Tabby',tab:1,state:'done',act:'Done · 3 files changed',since:305,ctx:21},
-  {id:4,name:'renovate-sweep',branch:'main',term:'Ghostty',tab:4,zj:'work',state:'working',act:'Running mvn verify',since:64,ctx:82},
-  {id:5,name:'foh-wing',branch:'rider-2026',term:'Tabby',tab:2,zj:'foh',state:'idle',act:'No activity',since:2710,ctx:12},
-  {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,zj:'work',state:'input',act:'Which Quarkus version: 3.27 LTS or 3.30?',since:15,ctx:47},
+  {id:4,name:'renovate-sweep',branch:'main',term:'Ghostty',tab:4,mx:'zellij',mxs:'zj',ms:'work',state:'working',act:'Running mvn verify',since:64,ctx:82},
+  {id:5,name:'foh-wing',branch:'rider-2026',term:'Tabby',tab:2,mx:'zellij',mxs:'zj',ms:'foh',state:'idle',act:'No activity',since:2710,ctx:12},
+  {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,mx:'zellij',mxs:'zj',ms:'work',state:'input',act:'Which Quarkus version: 3.27 LTS or 3.30?',since:15,ctx:47},
   {id:7,name:'pid3-reports',branch:'main',term:'Ghostty',tab:7,state:'working',act:'Querying dl.fact_timecard',since:33,ctx:55},
-  {id:8,name:'homelab',branch:'main',term:'Tabby',tab:3,zj:'lab',state:'done',act:'Done · opened PR #42',since:920,ctx:70},
+  {id:8,name:'homelab',branch:'main',term:'Tabby',tab:3,mx:'zellij',mxs:'zj',ms:'lab',state:'done',act:'Done · opened PR #42',since:920,ctx:70},
   {id:9,name:'blog',branch:'drafts',term:'Ghostty',tab:9,state:'idle',act:'No activity',since:5400,ctx:9},
 ].map(s=>({...s,t0:now-s.since*1000}));
 
@@ -239,10 +239,10 @@ function fromWire(m){
   const off = Date.now() - m.now*1000; // correct for clock differences
   return (m.sessions||[]).map(s => ({
     id:esc(s.id), name:esc(s.name), branch:esc(s.branch), term:esc(s.terminal), tab:+s.tab||0,
-    zj:esc(s.zellij), state:FROM_WIRE[s.state]||'idle', act:esc(s.activity), t0:s.since*1000+off, ctx:+s.ctx||0,
+    mx:esc(s.mux), mxs:esc(s.mux_short), ms:esc(s.mux_session), state:FROM_WIRE[s.state]||'idle', act:esc(s.activity), t0:s.since*1000+off, ctx:+s.ctx||0,
   }));
 }
-const where = s => [s.term, s.zj ? `zellij ${s.zj}` : (s.tab ? `tab ${s.tab}` : '')].filter(Boolean).join(' · ') || 'terminal';
+const where = s => [s.term, s.mx ? `${s.mx} ${s.ms}` : (s.tab ? `tab ${s.tab}` : '')].filter(Boolean).join(' · ') || 'terminal';
 const source = () => cur.src==='live' ? live.list : ALL.slice(0,cur.count);
 
 const G = s => s.state==='working' ? '<span class="spin">✻</span>' : ST[s.state].g;
@@ -341,7 +341,7 @@ function rWalker(L){
       <div class="wk-it tap ${i===0?'sel':''}" data-id="${s.id}">
         <div class="wk-ic bd-${s.state} c-${s.state}">${G(s)}</div>
         <div class="wk-tx"><div class="nm ell">${s.name}</div><div class="act ell ${s.state==='input'?'c-input':''}">${s.act}</div></div>
-        <div class="wk-rt"><span class="mut ell" style="max-width:56px">${s.zj?`zj:${s.zj}`:s.tab?`tab ${s.tab}`:(s.term||'')}</span><span class="mut">${T(s)}</span></div>
+        <div class="wk-rt"><span class="mut ell" style="max-width:56px">${s.mx?`${s.mxs}:${s.ms}`:s.tab?`tab ${s.tab}`:(s.term||'')}</span><span class="mut">${T(s)}</span></div>
       </div>`).join('')}
       ${L.length?'':'<div class="mut" style="padding:40px 10px;text-align:center;font-size:11px">no results</div>'}
     </div>

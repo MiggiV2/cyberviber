@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#define FW_VERSION "0.4.0"
+#define FW_VERSION "0.4.1"
 
 static constexpr int W = 240, H = 320;
 static constexpr int MAX_SESSIONS = 16;
@@ -43,7 +43,9 @@ struct Session {
   char branch[48];
   char activity[160];
   char terminal[16];
-  char zellij[32];
+  char mux[16];
+  char muxShort[4];
+  char muxSession[32];
   State state;
   int64_t since;
   int tab;
