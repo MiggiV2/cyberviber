@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -159,6 +160,22 @@ func LaunchAgentPlist(bin, logPath string) string {
 </dict>
 </plist>
 `, Label, xmlEscape(bin), xmlEscape(logPath), xmlEscape(logPath))
+}
+
+// SystemdUnit renders the systemd user service that keeps `cyberviber daemon` running.
+func SystemdUnit(bin string) string {
+	return fmt.Sprintf(`[Unit]
+Description=cyberviber daemon (Claude Code sessions on the ESP32 display)
+After=graphical-session.target
+
+[Service]
+ExecStart=%s daemon
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+`, strconv.Quote(bin))
 }
 
 func xmlEscape(s string) string {

@@ -11,7 +11,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -28,30 +31,34 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build darwin/arm64, darwin/amd64 and a universal binary
+      - name: Build darwin/arm64, darwin/amd64, a universal binary and linux/amd64, linux/arm64
         env:
           CGO_ENABLED: "0"
-          GOOS: darwin
         run: |
           VERSION="${GITHUB_REF_NAME}"
           [[ "$GITHUB_REF_TYPE" == "tag" ]] || VERSION="${GITHUB_SHA::7}"
           LDFLAGS="-s -w -X main.version=${VERSION}"
           mkdir -p dist/arm64 dist/amd64 dist/universal
-          GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o dist/arm64/cyberviber ./cmd/cyberviber
-          GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/amd64/cyberviber ./cmd/cyberviber
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" -o dist/arm64/cyberviber ./cmd/cyberviber
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o dist/amd64/cyberviber ./cmd/cyberviber
           lipo -create -output dist/universal/cyberviber dist/arm64/cyberviber dist/amd64/cyberviber
           lipo -info dist/universal/cyberviber
           dist/arm64/cyberviber version
           for a in arm64 amd64 universal; do
             tar -C "dist/$a" -czf "cyberviber-darwin-$a.tar.gz" cyberviber
           done
-          shasum -a 256 cyberviber-darwin-*.tar.gz > checksums.txt
+          for a in amd64 arm64; do
+            mkdir -p "dist/linux-$a"
+            GOOS=linux GOARCH=$a go build -trimpath -ldflags "$LDFLAGS" -o "dist/linux-$a/cyberviber" ./cmd/cyberviber
+            tar -C "dist/linux-$a" -czf "cyberviber-linux-$a.tar.gz" cyberviber
+          done
+          shasum -a 256 cyberviber-*.tar.gz > checksums.txt
           cat checksums.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: cyberviber-darwin
+          name: cyberviber
           path: |
-            cyberviber-darwin-*.tar.gz
+            cyberviber-*.tar.gz
             checksums.txt
 
   release:
@@ -63,7 +70,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: cyberviber-darwin
+          name: cyberviber
           path: dist
       - name: Create release
         env:

@@ -1,15 +1,10 @@
-// Package proc reads the macOS process table via sysctl (no cgo, no ps).
+// Package proc reads the process table: sysctl on macOS, /proc on Linux (no cgo, no ps).
 package proc
 
 import (
-	"bytes"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
-
-	"golang.org/x/sys/unix"
 )
 
 type Proc struct {
@@ -27,94 +22,7 @@ func (p Proc) IsClaude() bool {
 		strings.Contains(p.Exe, "/claude/versions/")
 }
 
-// Get reads one process.
-func Get(pid int) (Proc, error) {
-	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	if err != nil {
-		return Proc{}, err
-	}
-	if int(kp.Proc.P_pid) != pid {
-		return Proc{}, errors.New("no such process")
-	}
-	p := Proc{
-		PID:  pid,
-		PPID: int(kp.Eproc.Ppid),
-		Comm: unix.ByteSliceToString(kp.Proc.P_comm[:]),
-		TTY:  ttyName(kp.Eproc.Tdev),
-	}
-	p.Exe, p.Name = args(pid)
-	if p.Name == "" {
-		p.Name = p.Comm
-	}
-	return p, nil
-}
-
-// args reads the executable path and argv[0] via kern.procargs2.
-func args(pid int) (exe, name string) {
-	b, err := unix.SysctlRaw("kern.procargs2", pid)
-	if err != nil {
-		return "", ""
-	}
-	exe, argv, _ := parseProcargs(b)
-	if len(argv) > 0 {
-		name = filepath.Base(argv[0])
-	}
-	return exe, name
-}
-
-// Env returns the environment of a process (readable for processes of the same user).
-func Env(pid int) map[string]string {
-	b, err := unix.SysctlRaw("kern.procargs2", pid)
-	if err != nil {
-		return nil
-	}
-	_, _, env := parseProcargs(b)
-	m := make(map[string]string, len(env))
-	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok {
-			m[k] = v
-		}
-	}
-	return m
-}
-
-// parseProcargs splits a kern.procargs2 buffer:
-// int32 argc, exec path, NUL padding, argc × argv, env strings, empty string.
-func parseProcargs(b []byte) (exe string, argv, env []string) {
-	if len(b) < 4 {
-		return "", nil, nil
-	}
-	argc := int(int32(b[0]) | int32(b[1])<<8 | int32(b[2])<<16 | int32(b[3])<<24)
-	rest := b[4:]
-	i := bytes.IndexByte(rest, 0)
-	if i < 0 {
-		return "", nil, nil
-	}
-	exe, rest = string(rest[:i]), bytes.TrimLeft(rest[i:], "\x00")
-	for len(rest) > 0 {
-		j := bytes.IndexByte(rest, 0)
-		if j < 0 {
-			j = len(rest)
-		}
-		str := string(rest[:j])
-		if j < len(rest) {
-			rest = rest[j+1:]
-		} else {
-			rest = nil
-		}
-		if len(argv) < argc {
-			argv = append(argv, str)
-			continue
-		}
-		if str == "" {
-			break
-		}
-		env = append(env, str)
-	}
-	return exe, argv, env
-}
-
-// Chain returns pid and its ancestors up to (excluding) launchd.
+// Chain returns pid and its ancestors up to (excluding) PID 1.
 func Chain(pid int) []Proc { return chain(pid, Get) }
 
 func chain(pid int, get func(int) (Proc, error)) []Proc {
@@ -165,24 +73,4 @@ func findAgent(pid int, get func(int) (Proc, error)) (Proc, bool) {
 		return *fallback, true
 	}
 	return Proc{}, false
-}
-
-func ttyName(dev int32) string {
-	if dev == -1 || dev == 0 {
-		return ""
-	}
-	entries, err := os.ReadDir("/dev")
-	if err != nil {
-		return ""
-	}
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), "tty") {
-			continue
-		}
-		var st unix.Stat_t
-		if unix.Stat("/dev/"+e.Name(), &st) == nil && int32(st.Rdev) == dev {
-			return e.Name()
-		}
-	}
-	return ""
 }

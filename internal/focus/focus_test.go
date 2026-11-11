@@ -221,6 +221,7 @@ func newFocuser(s session.Session, get func(int) (proc.Proc, error), env map[str
 		Env:      func(int) map[string]string { return env },
 		Run:      r.run,
 		TabbyDir: tabbyDir,
+		GOOS:     "darwin",
 	}
 }
 
@@ -382,11 +383,10 @@ func TestShouldFocusHerdrPaneThenKittyWindow(t *testing.T) {
 		"p90\nf4\nd0x11\nn->0xaa\n"
 	r := &recorder{answers: map[string]string{
 		"-c herdr":     herdrLsof,
-		"-p 70":        "p70\nf20\nn/tmp/kitty-70\nf21\nn->0x99\n",
 		"focus-window": "",
 	}}
 	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
-		map[string]string{"HERDR_SOCKET_PATH": sock, "HERDR_PANE_ID": "w1M:p1"}, r, dir)
+		map[string]string{"HERDR_SOCKET_PATH": sock, "HERDR_PANE_ID": "w1M:p1", "KITTY_LISTEN_ON": "unix:/tmp/kitty-70"}, r, dir)
 
 	// when
 	res := f.Focus("s1")
@@ -426,10 +426,69 @@ func TestShouldActivateKittyWithoutRemoteControl(t *testing.T) {
 		proc.Proc{PID: 80, PPID: 70, Name: "login"},
 		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: kittyExe},
 	)
-	r := &recorder{answers: map[string]string{"-p 70": "p70\nf21\nn->0x99\n"}}
+	r := &recorder{}
 	res := newFocuser(session.Session{ID: "s1", PID: 100}, get, nil, r, shortTempDir(t)).Focus("s1")
 	joined := strings.Join(r.calls, "\n")
 	if res.OK || res.Reason != "no-remote-control" || strings.Contains(joined, "kitten") || !strings.Contains(joined, "open -a /Applications/kitty.app") {
 		t.Fatalf("%+v %v", res, r.calls)
+	}
+}
+
+func TestShouldResolveLinuxTerminalByBinaryName(t *testing.T) {
+	get := table(
+		proc.Proc{PID: 90, PPID: 80, Name: "claude", TTY: "pts/3"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: "/usr/bin/kitty"},
+	)
+	term, ok := ResolveTerminal(90, get)
+	if !ok || term.App != "kitty" || term.Bundle != "/usr/bin/kitty" || term.AppPID != 70 || len(term.Chain) != 2 {
+		t.Fatalf("ok=%v %+v", ok, term)
+	}
+}
+
+const ssOut = `u_str ESTAB 0      0                                 * 180848 * 178742 users:(("herdr",pid=266,fd=5))
+u_str ESTAB 0      0      /run/user/1000/herdr/herdr-client.sock 178742 * 180848 users:(("herdr",pid=265,fd=30))
+u_str ESTAB 0      0                                 * 190001 * 190002 users:(("zsh",pid=300,fd=5))
+u_str ESTAB 0      0      /run/user/1000/herdr/herdr-client.sock 190002 * 190001 users:(("herdr",pid=265,fd=31))
+u_str ESTAB 0      0                                 * 190003 * 0 users:(("herdr",pid=267,fd=6))
+`
+
+func TestShouldMapSsSocketsToClientsOfCommand(t *testing.T) {
+	got := ParseSS(ssOut, "herdr")
+	if c := got["/run/user/1000/herdr/herdr-client.sock"]; len(got) != 1 || len(c) != 1 || c[0] != 266 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestShouldFocusHerdrThenKittyOnHyprland(t *testing.T) {
+	// given claude(100) in herdr pane w1:p2; herdr client 266 runs in kitty 70 on Linux
+	dir := shortTempDir(t)
+	sock := filepath.Join(dir, "herdr.sock")
+	seen := fakeHerdr(t, sock)
+	get := table(
+		proc.Proc{PID: 100, PPID: 265, Name: "claude"},
+		proc.Proc{PID: 265, PPID: 1, Name: "herdr"},
+		proc.Proc{PID: 266, PPID: 80, Name: "herdr", TTY: "pts/1"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: "/usr/bin/kitty"},
+	)
+	r := &recorder{answers: map[string]string{"ss -xpH": strings.ReplaceAll(ssOut, "/run/user/1000/herdr", dir)}}
+	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
+		map[string]string{"HERDR_SOCKET_PATH": sock, "HERDR_PANE_ID": "w1:p2", "KITTY_LISTEN_ON": "unix:@kitty-70"}, r, dir)
+	f.GOOS = "linux"
+
+	// when
+	res := f.Focus("s1")
+
+	// then
+	joined := strings.Join(r.calls, "\n")
+	if !res.OK || res.Terminal != "kitty" || len(*seen) != 1 {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+	if !strings.Contains(joined, "/usr/bin/kitten @ --to unix:@kitty-70 focus-window --match pid:266 or pid:80") {
+		t.Fatalf("kitty window not focused: %v", r.calls)
+	}
+	if !strings.Contains(joined, "hyprctl -i 0 dispatch focuswindow pid:70") || strings.Contains(joined, "open -a") || strings.Contains(joined, "lsof") {
+		t.Fatalf("expected hyprctl activation, no macOS tools: %v", r.calls)
 	}
 }

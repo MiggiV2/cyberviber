@@ -68,7 +68,7 @@ type tabby struct{}
 // Focus asks the plugin for the tab and always activates Tabby, even when another app is frontmost.
 func (tabby) Focus(f *Focuser, _ session.Session, t Terminal, _ bool) (int, string) {
 	tab, err := FocusTabby(f.TabbyDir, t.Chain)
-	f.Run("open", "-a", t.Bundle)
+	f.activate(t)
 	switch {
 	case errors.Is(err, ErrNoPlugin):
 		return 0, "no-plugin"

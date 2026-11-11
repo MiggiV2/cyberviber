@@ -86,7 +86,7 @@ func main() {
 	case "status":
 		err = runStatus(cfg)
 	case "sim":
-		err = exec.Command("open", fmt.Sprintf("http://127.0.0.1:%d/", cfg.Port)).Run()
+		err = openURL(fmt.Sprintf("http://127.0.0.1:%d/", cfg.Port))
 	case "release":
 		err = runRelease(cfg, os.Args[2:])
 	case "layout":
@@ -506,8 +506,8 @@ func elapsed(sec int64) string {
 }
 
 type installPaths struct {
-	settings, plist, log string
-	launchd              bool
+	settings string
+	service  bool
 }
 
 func parseInstallFlags(name string, args []string) (installPaths, error) {
@@ -515,9 +515,8 @@ func parseInstallFlags(name string, args []string) (installPaths, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	p := installPaths{}
 	fs.StringVar(&p.settings, "settings", filepath.Join(home, ".claude", "settings.json"), "Claude Code settings file")
-	fs.BoolVar(&p.launchd, "launchd", true, "install/remove the launchd agent")
-	p.plist = filepath.Join(home, "Library", "LaunchAgents", install.Label+".plist")
-	p.log = filepath.Join(home, "Library", "Logs", "cyberviber.log")
+	fs.BoolVar(&p.service, "service", true, "install/remove the background service (launchd agent / systemd user unit)")
+	fs.BoolVar(&p.service, "launchd", true, "same as -service")
 	return p, fs.Parse(args)
 }
 
@@ -547,7 +546,7 @@ func runInstall(args []string) error {
 		fmt.Println("status line: reports context usage (ctx) to the daemon, prints nothing")
 	}
 
-	if _, err := os.Stat("/Applications/Tabby.app"); err == nil {
+	if install.TabbyInstalled() {
 		dir, err := install.InstallTabbyPlugin(install.TabbyPluginsDir())
 		if err != nil {
 			return err
@@ -556,29 +555,12 @@ func runInstall(args []string) error {
 		fmt.Println("  → reload Tabby windows to load it (View → Reload, or restart Tabby)")
 	}
 
-	if !p.launchd {
+	if !p.service {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(p.plist), 0o755); err != nil {
+	if err := installService(bin); err != nil {
 		return err
 	}
-	if err := os.WriteFile(p.plist, []byte(install.LaunchAgentPlist(bin, p.log)), 0o644); err != nil {
-		return err
-	}
-	domain := fmt.Sprintf("gui/%d", os.Getuid())
-	_ = exec.Command("launchctl", "bootout", domain+"/"+install.Label).Run()
-	// bootout is asynchronous: bootstrap fails with EIO until the old agent is gone
-	var out []byte
-	for i := 0; i < 20; i++ {
-		if out, err = exec.Command("launchctl", "bootstrap", domain, p.plist).CombinedOutput(); err == nil {
-			break
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	if err != nil {
-		return fmt.Errorf("launchctl bootstrap: %v: %s", err, out)
-	}
-	fmt.Println("launchd agent started:", p.plist)
 	fmt.Println("new Claude Code sessions report to the daemon; already running ones after their next hook event")
 	return nil
 }
@@ -595,12 +577,8 @@ func runUninstall(args []string) error {
 	if err := install.RemoveTabbyPlugin(install.TabbyPluginsDir()); err != nil {
 		return err
 	}
-	if p.launchd {
-		_ = exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d/%s", os.Getuid(), install.Label)).Run()
-		if err := os.Remove(p.plist); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		fmt.Println("launchd agent removed")
+	if p.service {
+		return removeService()
 	}
 	return nil
 }

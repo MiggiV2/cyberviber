@@ -114,9 +114,9 @@ func randomHex(n int) string {
 type ghostty struct{}
 
 func (ghostty) Focus(f *Focuser, s session.Session, t Terminal, inMux bool) (int, string) {
-	if f.focusGhostty(s.ID, s.Cwd, t.TTY, inMux) {
+	if f.goos() == "darwin" && f.focusGhostty(s.ID, s.Cwd, t.TTY, inMux) {
 		return 0, ""
 	}
-	f.Run("open", "-a", t.Bundle)
+	f.activate(t)
 	return 0, "tab-not-found"
 }
