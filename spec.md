@@ -154,7 +154,7 @@ Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only)
 
 #### Step 2c: kitty (remote control)
 
-Needs `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` in `kitty.conf`; kitty appends its PID to the path, so the daemon reads the listening socket of the kitty process with `lsof -a -p <kitty> -U`. Then `kitten @ --to unix:<sock> focus-window --match "pid:<anchor> or … or pid:<tab root>"` (a window's `pid` is its child, the tab root) and `open -a kitty.app`. Without a socket: activate only, reason `no-remote-control`.
+Needs `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` in `kitty.conf`; kitty appends its PID to the path and exports the result as `KITTY_LISTEN_ON` to the processes in its windows, so the daemon reads it from the environment of the chain. Then `kitten @ --to $KITTY_LISTEN_ON focus-window --match "pid:<anchor> or … or pid:<tab root>"` (a window's `pid` is its child, the tab root) and `open -a kitty.app`. Without a socket: activate only, reason `no-remote-control`. **Verified** on macOS with kitty 0.50.0 + herdr 0.9.5: a tap on the device focuses the herdr pane and the kitty window.
 
 #### Linux (Hyprland)
 

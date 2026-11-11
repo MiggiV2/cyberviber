@@ -6,7 +6,7 @@ Status: the Mac daemon, the browser simulator, the jump to the terminal, the USB
 
 ## Install (macOS)
 
-From source:
+From source (needs Go, e.g. `brew install go`):
 
 ```sh
 go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest
@@ -28,7 +28,9 @@ allow_remote_control socket-only
 listen_on unix:/tmp/kitty
 ```
 
-`cyberviber uninstall` removes all of it.
+herdr and zellij need no setup: the daemon reads the pane from the session's environment and talks to the multiplexer directly.
+
+`cyberviber uninstall` removes all of it, except the kitty lines, which you added yourself.
 
 ## Install (Linux, Hyprland)
 
