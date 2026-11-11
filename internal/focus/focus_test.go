@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/proc"
 	"github.com/d135-1r43/cyberviber/internal/session"
 )
@@ -90,10 +91,34 @@ d0x1111
 n/var/folders/T/zellij-501/contract_version_1/other
 `
 
-func TestShouldMapZellijClientsToSessions(t *testing.T) {
+func TestShouldMapSocketPathsToClients(t *testing.T) {
 	got := ParseLsof(lsofOut)
-	if len(got["sincere-drum"]) != 1 || got["sincere-drum"][0] != 61652 || len(got["other"]) != 0 {
+	drum := got["/var/folders/T/zellij-501/contract_version_1/sincere-drum"]
+	if len(drum) != 1 || drum[0] != 61652 || len(got["/var/folders/T/zellij-501/contract_version_1/other"]) != 0 {
 		t.Fatalf("%v", got)
+	}
+}
+
+func TestShouldListEachClientOncePerSocketPath(t *testing.T) {
+	// given client 5 holds two connections to server 9's socket, client 6 one to another socket
+	out := "p9\nf3\nd0xa\nn/s/one\nf4\nd0xb\nn/s/one\nf5\nd0xc\nn/s/two\n" +
+		"p5\nf1\nd0x1\nn->0xa\nf2\nd0x2\nn->0xb\n" +
+		"p6\nf1\nd0x3\nn->0xc\n"
+
+	// when
+	got := ParseLsof(out)
+
+	// then
+	if len(got) != 2 || len(got["/s/one"]) != 1 || got["/s/one"][0] != 5 || len(got["/s/two"]) != 1 || got["/s/two"][0] != 6 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestShouldHaveMultiplexerForEveryKind(t *testing.T) {
+	for _, k := range mux.Kinds() {
+		if multiplexers[k] == nil {
+			t.Errorf("mux kind %q has no Multiplexer in package focus", k)
+		}
 	}
 }
 
@@ -219,7 +244,7 @@ func TestShouldFocusZellijPaneThenTabbyTab(t *testing.T) {
 	res := f.Focus("s1")
 
 	// then
-	if !res.OK || res.Terminal != "tabby" || res.Zellij != "sincere-drum" {
+	if !res.OK || res.Terminal != "tabby" || res.Mux != "zellij" {
 		t.Fatalf("%+v calls=%v", res, r.calls)
 	}
 	joined := strings.Join(r.calls, "\n")
@@ -237,7 +262,7 @@ func TestShouldFocusZellijPaneThenTabbyTab(t *testing.T) {
 func TestShouldPreferZellijInfoFromHooks(t *testing.T) {
 	get := table(proc.Proc{PID: 100, PPID: 1, Name: "claude"})
 	r := &recorder{}
-	f := newFocuser(session.Session{ID: "s1", PID: 100, ZellijSession: "work", ZellijPane: "7"}, get, nil, r, shortTempDir(t))
+	f := newFocuser(session.Session{ID: "s1", PID: 100, Mux: mux.Location{Kind: "zellij", Session: "work", Pane: "7"}}, get, nil, r, shortTempDir(t))
 	res := f.Focus("s1")
 	if res.Reason != "detached" || !strings.Contains(strings.Join(r.calls, "\n"), "zellij --session work action focus-pane-id terminal_7") {
 		t.Fatalf("%+v %v", res, r.calls)

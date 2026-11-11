@@ -86,7 +86,7 @@ Per session the daemon keeps:
 | `ctx` | context usage in percent, from Claude Code's status line input (`context_window.used_percentage`); 0 until known |
 | `pid` | PID of the `claude` process (found by walking up from the hook process) — liveness + jump |
 | `tty` | controlling TTY of the `claude` process |
-| `zellij` | `ZELLIJ_SESSION_NAME` + `ZELLIJ_PANE_ID`, if the hook runs inside zellij |
+| `mux` | multiplexer kind, session and pane from the environment (`ZELLIJ_SESSION_NAME` + `ZELLIJ_PANE_ID` for zellij), if the hook runs inside a multiplexer (`internal/mux`) |
 | `terminal` | `ghostty` or `tabby`, resolved from the process tree (see 3.2), **not** from `TERM_PROGRAM` (inside zellij that is inherited from whichever terminal started the zellij server) |
 | `tab` | tab index in the terminal window, when the terminal can report it (display only) |
 
@@ -148,6 +148,12 @@ Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Ta
 
 Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only).
 
+#### Adding a multiplexer or terminal
+
+- **Multiplexer:** a row in `internal/mux` (`kinds`: name, session and pane env vars, optional display label), and a `focus.Multiplexer` registered in `multiplexers`. It focuses the pane and returns the PIDs of the attached clients (helper: `socketClients`, lsof peer matching on the server's socket path). A test fails if a kind has no `Multiplexer`.
+- **Terminal app:** a `focus.App` registered in `apps` under the lower-cased bundle name (`/Applications/Foo.app` → `foo`). It gets the session, the process chain anchor → tab root, the outer TTY and whether a multiplexer sits in between. Unregistered apps are activated with `open -a`.
+- The device shows `<mux> <mux_session>` (compact: `<mux_short>:<mux_session>`) and the terminal name as sent; no firmware change needed.
+
 #### Matrix
 
 | | no zellij | zellij |
@@ -184,7 +190,7 @@ Daemon → device:
     { "id": "a1b2", "name": "quarkus-svc", "branch": "fix/cve", "state": "input",
       "activity": "Which Quarkus version: 3.27 LTS or 3.30?",
       "since": 1762246125, "ctx": 47,
-      "terminal": "ghostty", "tab": 6, "zellij": "work" }
+      "terminal": "ghostty", "tab": 6, "mux": "zellij", "mux_short": "zj", "mux_session": "work" }
   ] }
 ```
 
@@ -200,7 +206,7 @@ Daemon → device after a focus: `{ "type": "focused", "id": "a1b2", "ok": true 
 ### 3.4 Daemon implementation (Go)
 
 - Single static binary `cyberviber` with subcommands: `daemon` (run by launchd), `install` / `uninstall` (hooks + launchd plist), `status` (prints the session list), `sim` (opens the browser simulator), `layout <id>`, `theme <id>`, `release` (free the serial port for flashing).
-- The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds process info (`claude` PID, TTY, `ZELLIJ_SESSION_NAME`, `ZELLIJ_PANE_ID`) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
+- The hooks call the same binary (`cyberviber hook <event>`). It reads the hook JSON from stdin, adds process info (`claude` PID, TTY, multiplexer location from the environment) and posts it to the daemon on `127.0.0.1:<port>`. It must exit fast and never block Claude Code, even if the daemon is down.
 - Serial: `go.bug.st/serial` (port enumeration with USB VID/PID, DTR/RTS control).
 - Config: TOML (`github.com/BurntSushi/toml`). Otherwise the standard library only (`net/http`, `encoding/json`, `os/exec` for `osascript`, `git`, `zellij`, `ps`/`lsof`; process tree via `sysctl kern.proc` where possible).
 - Built with `go build`, no CGO; installed via `go install` or a release binary for darwin/arm64 + amd64.
@@ -211,8 +217,9 @@ cmd/cyberviber/      main + subcommands
 internal/session/    session store, state machine, idle/liveness checks
 internal/hook/       hook payload parsing, terminal info
 internal/serial/     port discovery, line framing, reconnect
-internal/proc/       process tree, anchor + tab root resolution, zellij client lookup
-internal/focus/      focus strategies: zellij, ghostty (AppleScript), tabby (plugin socket)
+internal/proc/       process tree, process environment
+internal/mux/        multiplexer detection from the environment (one table row per multiplexer)
+internal/focus/      Multiplexer (zellij) and App (ghostty via AppleScript, tabby via plugin socket) registries
 internal/install/    settings.json hook entries, launchd plist
 tabby-plugin/        Tabby plugin (TypeScript) exposing tab focus over a Unix socket
 firmware/            PlatformIO project for the ESP32

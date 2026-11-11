@@ -1,7 +1,11 @@
 // Package event defines the hook event forwarded from `cyberviber hook` to the daemon.
 package event
 
-import "time"
+import (
+	"time"
+
+	"github.com/d135-1r43/cyberviber/internal/mux"
+)
 
 // Claude Code hook event names.
 const (
@@ -29,11 +33,10 @@ type Event struct {
 	Source           string `json:"source,omitempty"`
 
 	// Added by `cyberviber hook`.
-	Activity      string    `json:"cv_activity,omitempty"`
-	File          string    `json:"cv_file,omitempty"`
-	PID           int       `json:"cv_pid,omitempty"`
-	TTY           string    `json:"cv_tty,omitempty"`
-	ZellijSession string    `json:"cv_zellij_session,omitempty"`
-	ZellijPane    string    `json:"cv_zellij_pane,omitempty"`
-	Time          time.Time `json:"cv_time"`
+	Activity string       `json:"cv_activity,omitempty"`
+	File     string       `json:"cv_file,omitempty"`
+	PID      int          `json:"cv_pid,omitempty"`
+	TTY      string       `json:"cv_tty,omitempty"`
+	Mux      mux.Location `json:"cv_mux,omitzero"`
+	Time     time.Time    `json:"cv_time"`
 }

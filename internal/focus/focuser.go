@@ -1,10 +1,9 @@
 package focus
 
 import (
-	"errors"
-	"log"
 	"sync"
 
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/proc"
 	"github.com/d135-1r43/cyberviber/internal/session"
 )
@@ -14,9 +13,27 @@ type Result struct {
 	OK       bool
 	Reason   string // not-found, no-process, detached, unknown-terminal, no-plugin, tab-not-found
 	Terminal string
-	Zellij   string
+	Mux      string
 	Tab      int
 }
+
+// Multiplexer focuses a pane inside a terminal multiplexer. Multiplexer servers run detached from
+// the terminal, so it returns the PIDs of the attached clients: they lead to the terminal tab.
+// No clients means the session is detached.
+type Multiplexer interface {
+	Focus(f *Focuser, loc mux.Location) (clients []int)
+}
+
+// App focuses the window or tab of a terminal app. It returns the tab index when the app reports
+// one, and a Reason when the tab was not found.
+type App interface {
+	Focus(f *Focuser, s session.Session, t Terminal, inMux bool) (tab int, reason string)
+}
+
+var (
+	multiplexers = map[string]Multiplexer{"zellij": zellij{}}
+	apps         = map[string]App{"tabby": tabby{}, "ghostty": ghostty{}}
+)
 
 type Focuser struct {
 	Lookup   func(id string) (session.Session, bool)
@@ -29,7 +46,7 @@ type Focuser struct {
 	ghosttyIDs map[string]string // session id → Ghostty terminal id
 }
 
-// Focus brings the session's terminal to the front.
+// Focus brings the session's terminal to the front: multiplexer pane first, then the terminal tab.
 func (f *Focuser) Focus(id string) Result {
 	s, ok := f.Lookup(id)
 	if !ok {
@@ -39,39 +56,21 @@ func (f *Focuser) Focus(id string) Result {
 		return Result{Reason: "no-process"}
 	}
 
-	zs, zp := s.ZellijSession, s.ZellijPane
-	if zs == "" {
+	loc := s.Mux
+	if loc.IsZero() {
 		env := f.Env(s.PID)
-		zs, zp = env["ZELLIJ_SESSION_NAME"], env["ZELLIJ_PANE_ID"]
+		loc, _ = mux.Detect(func(k string) string { return env[k] })
 	}
-	res := Result{Zellij: zs}
+	res := Result{Mux: loc.Kind}
 
 	anchor := s.PID
-	if zs != "" {
-		out, err := f.Run("lsof", "-U", "-a", "-c", "zellij", "-F", "pfdn")
-		if err != nil && len(out) == 0 {
-			log.Printf("focus %s: lsof: %v", id, err)
-		}
-		clients := ParseLsof(string(out))[zs]
-		zellij := ""
-		if len(clients) > 0 {
-			anchor = clients[0]
-			if c, err := f.Get(anchor); err == nil {
-				zellij = c.Exe // same binary (and version) as the attached client
-			}
-		}
-		if zellij == "" {
-			zellij = lookZellij()
-		}
-		if zp != "" {
-			if out, err := f.Run(zellij, "--session", zs, "action", "focus-pane-id", paneID(zp)); err != nil {
-				log.Printf("focus %s: zellij focus-pane-id: %v %s", id, err, out)
-			}
-		}
+	if m, ok := multiplexers[loc.Kind]; ok {
+		clients := m.Focus(f, loc)
 		if len(clients) == 0 {
 			res.Reason = "detached"
 			return res
 		}
+		anchor = clients[0]
 	}
 
 	term, ok := ResolveTerminal(anchor, f.Get)
@@ -81,28 +80,13 @@ func (f *Focuser) Focus(id string) Result {
 	}
 	res.Terminal = term.App
 
-	switch term.App {
-	case "tabby":
-		tab, err := FocusTabby(f.TabbyDir, term.Chain)
-		f.Run("open", "-a", term.Bundle)
-		switch {
-		case errors.Is(err, ErrNoPlugin):
-			res.Reason = "no-plugin"
-		case err != nil:
-			res.Reason = "tab-not-found"
-		default:
-			res.OK, res.Tab = true, tab
-		}
-	case "ghostty":
-		if f.focusGhostty(s.ID, s.Cwd, term.TTY, zs != "") {
-			res.OK = true
-		} else {
-			f.Run("open", "-a", term.Bundle)
-			res.Reason = "tab-not-found"
-		}
-	default:
+	app, ok := apps[term.App]
+	if !ok {
 		f.Run("open", "-a", term.Bundle)
 		res.Reason = "unknown-terminal"
+		return res
 	}
+	res.Tab, res.Reason = app.Focus(f, s, term, !loc.IsZero())
+	res.OK = res.Reason == ""
 	return res
 }

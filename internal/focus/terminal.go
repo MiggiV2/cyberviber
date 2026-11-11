@@ -1,5 +1,8 @@
 // Package focus brings the terminal of a Claude Code session to the front:
-// zellij pane (if any) → terminal tab (Tabby via plugin, Ghostty via AppleScript) → app activation.
+// multiplexer pane (if any) → terminal tab → app activation.
+//
+// Adding a multiplexer: detect it in package mux, implement Multiplexer, register it in multiplexers.
+// Adding a terminal app: implement App, register it in apps under the lower-cased app bundle name.
 package focus
 
 import (
@@ -10,7 +13,7 @@ import (
 
 // Terminal is the terminal app hosting an anchor process.
 type Terminal struct {
-	App    string // "tabby", "ghostty" or the lower-cased app name for other apps
+	App    string // lower-cased app bundle name, e.g. "tabby", "ghostty"
 	Bundle string // e.g. /Applications/Tabby.app
 	Chain  []int  // anchor … tab root (the process right below the app)
 	TTY    string // the anchor's TTY (outer TTY)

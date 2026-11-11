@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/proc"
 )
 
@@ -26,7 +27,7 @@ func TestShouldEnrichPreToolUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	if e.Name != event.PreToolUse || e.Activity != "Edit main.go" || e.File != "/x/main.go" ||
-		e.PID != 80 || e.TTY != "ttys022" || e.ZellijSession != "sincere-drum" || e.ZellijPane != "23" || !e.Time.Equal(now) {
+		e.PID != 80 || e.TTY != "ttys022" || e.Mux != (mux.Location{Kind: "zellij", Session: "sincere-drum", Pane: "23"}) || !e.Time.Equal(now) {
 		t.Fatalf("unexpected %+v", e)
 	}
 	b, _ := json.Marshal(e)

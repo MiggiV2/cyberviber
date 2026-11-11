@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/d135-1r43/cyberviber/internal/event"
+	"github.com/d135-1r43/cyberviber/internal/mux"
 	"github.com/d135-1r43/cyberviber/internal/protocol"
 	"github.com/d135-1r43/cyberviber/internal/session"
 )
@@ -20,7 +21,7 @@ func TestShouldAcceptEventsAndServeSessions(t *testing.T) {
 	srv := httptest.NewServer(New(store, func() { changed++ }).Handler())
 	defer srv.Close()
 	e := event.Event{Name: event.PermissionRequest, SessionID: "a1", Cwd: "/x/quarkus-svc", Activity: "Allow Bash: ls?",
-		Time: time.Now(), ZellijSession: "work", ZellijPane: "3"}
+		Time: time.Now(), Mux: mux.Location{Kind: "zellij", Session: "work", Pane: "3"}}
 	body, _ := json.Marshal(e)
 
 	// when
@@ -47,7 +48,7 @@ func TestShouldAcceptEventsAndServeSessions(t *testing.T) {
 		t.Fatalf("unexpected %+v", msg)
 	}
 	got := msg.Sessions[0]
-	if got.ID != "a1" || got.Name != "quarkus-svc" || got.State != "input" || got.Zellij != "work" || got.Activity != "Allow Bash: ls?" {
+	if got.ID != "a1" || got.Name != "quarkus-svc" || got.State != "input" || got.Mux != "zellij" || got.MuxShort != "zj" || got.MuxSession != "work" || got.Activity != "Allow Bash: ls?" {
 		t.Fatalf("unexpected %+v", got)
 	}
 }

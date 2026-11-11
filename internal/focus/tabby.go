@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/d135-1r43/cyberviber/internal/session"
 )
 
 var (
@@ -59,4 +61,19 @@ func FocusTabby(dir string, pids []int) (int, error) {
 		return 0, ErrNoPlugin
 	}
 	return 0, ErrNotFound
+}
+
+type tabby struct{}
+
+// Focus asks the plugin for the tab and always activates Tabby, even when another app is frontmost.
+func (tabby) Focus(f *Focuser, _ session.Session, t Terminal, _ bool) (int, string) {
+	tab, err := FocusTabby(f.TabbyDir, t.Chain)
+	f.Run("open", "-a", t.Bundle)
+	switch {
+	case errors.Is(err, ErrNoPlugin):
+		return 0, "no-plugin"
+	case err != nil:
+		return 0, "tab-not-found"
+	}
+	return tab, ""
 }
