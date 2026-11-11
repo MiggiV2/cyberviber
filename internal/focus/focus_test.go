@@ -472,7 +472,10 @@ func TestShouldFocusHerdrThenKittyOnHyprland(t *testing.T) {
 		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
 		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: "/usr/bin/kitty"},
 	)
-	r := &recorder{answers: map[string]string{"ss -xpH": strings.ReplaceAll(ssOut, "/run/user/1000/herdr", dir)}}
+	r := &recorder{answers: map[string]string{
+		"ss -xpH":      strings.ReplaceAll(ssOut, "/run/user/1000/herdr", dir),
+		"hl.dsp.focus": "ok",
+	}}
 	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
 		map[string]string{"HERDR_SOCKET_PATH": sock, "HERDR_PANE_ID": "w1:p2", "KITTY_LISTEN_ON": "unix:@kitty-70"}, r, dir)
 	f.GOOS = "linux"
@@ -488,7 +491,22 @@ func TestShouldFocusHerdrThenKittyOnHyprland(t *testing.T) {
 	if !strings.Contains(joined, "/usr/bin/kitten @ --to unix:@kitty-70 focus-window --match pid:266 or pid:80") {
 		t.Fatalf("kitty window not focused: %v", r.calls)
 	}
-	if !strings.Contains(joined, "hyprctl -i 0 dispatch focuswindow pid:70") || strings.Contains(joined, "open -a") || strings.Contains(joined, "lsof") {
+	if !strings.Contains(joined, `hyprctl -i 0 dispatch hl.dsp.focus({ window = "pid:70" })`) ||
+		strings.Contains(joined, "focuswindow") || strings.Contains(joined, "open -a") || strings.Contains(joined, "lsof") {
 		t.Fatalf("expected hyprctl activation, no macOS tools: %v", r.calls)
+	}
+}
+
+func TestShouldFallBackToLegacyDispatcherOnHyprlandBefore057(t *testing.T) {
+	// given a Hyprland that does not understand the Lua dispatcher
+	r := &recorder{answers: map[string]string{"hl.dsp.focus": "Invalid dispatcher"}}
+	f := &Focuser{Run: r.run, GOOS: "linux"}
+
+	// when
+	f.activate(Terminal{AppPID: 70})
+
+	// then
+	if len(r.calls) != 2 || r.calls[1] != "hyprctl -i 0 dispatch focuswindow pid:70" {
+		t.Fatalf("%v", r.calls)
 	}
 }
