@@ -337,3 +337,99 @@ func TestShouldEscapeAppleScriptStrings(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+// fakeHerdr answers herdr socket API requests like the herdr server.
+func fakeHerdr(t *testing.T, sock string) *[]map[string]any {
+	t.Helper()
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var seen []map[string]any
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			var req map[string]any
+			json.NewDecoder(bufio.NewReader(c)).Decode(&req)
+			seen = append(seen, req)
+			json.NewEncoder(c).Encode(map[string]any{"id": req["id"], "result": map[string]any{"type": "ok"}})
+			c.Close()
+		}
+	}()
+	return &seen
+}
+
+const kittyExe = "/Applications/kitty.app/Contents/MacOS/kitty"
+
+func TestShouldFocusHerdrPaneThenKittyWindow(t *testing.T) {
+	// given claude(100) runs in herdr pane w1M:p1; herdr client 90 runs in a kitty window via login(80)
+	dir := shortTempDir(t)
+	sock := filepath.Join(dir, "herdr.sock")
+	seen := fakeHerdr(t, sock)
+	get := table(
+		proc.Proc{PID: 100, PPID: 99, Name: "claude"},
+		proc.Proc{PID: 99, PPID: 1, Name: "herdr"},
+		proc.Proc{PID: 90, PPID: 85, Name: "herdr", TTY: "ttys000"},
+		proc.Proc{PID: 85, PPID: 80, Name: "-zsh"},
+		proc.Proc{PID: 80, PPID: 70, Name: "login", Exe: "/usr/bin/login"},
+		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: kittyExe},
+	)
+	herdrLsof := "p99\nf30\nd0xaa\nn" + filepath.Join(dir, "herdr-client.sock") + "\nf4\nd0xbb\nn" + sock + "\n" +
+		"p90\nf4\nd0x11\nn->0xaa\n"
+	r := &recorder{answers: map[string]string{
+		"-c herdr":     herdrLsof,
+		"-p 70":        "p70\nf20\nn/tmp/kitty-70\nf21\nn->0x99\n",
+		"focus-window": "",
+	}}
+	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
+		map[string]string{"HERDR_SOCKET_PATH": sock, "HERDR_PANE_ID": "w1M:p1"}, r, dir)
+
+	// when
+	res := f.Focus("s1")
+
+	// then
+	if !res.OK || res.Terminal != "kitty" || res.Mux != "herdr" {
+		t.Fatalf("%+v calls=%v", res, r.calls)
+	}
+	if len(*seen) != 1 || (*seen)[0]["method"] != "pane.focus" ||
+		(*seen)[0]["params"].(map[string]any)["pane_id"] != "w1M:p1" {
+		t.Fatalf("herdr not focused: %+v", *seen)
+	}
+	joined := strings.Join(r.calls, "\n")
+	if !strings.Contains(joined, "/Applications/kitty.app/Contents/MacOS/kitten @ --to unix:/tmp/kitty-70 focus-window --match pid:90 or pid:85 or pid:80") {
+		t.Fatalf("kitty window not focused: %v", r.calls)
+	}
+	if !strings.Contains(joined, "open -a /Applications/kitty.app") {
+		t.Fatalf("kitty not activated: %v", r.calls)
+	}
+}
+
+func TestShouldReportDetachedHerdr(t *testing.T) {
+	dir := shortTempDir(t)
+	sock := filepath.Join(dir, "herdr.sock")
+	fakeHerdr(t, sock)
+	r := &recorder{}
+	f := newFocuser(session.Session{ID: "s1", PID: 100, Mux: mux.Location{Kind: "herdr", Session: sock, Pane: "w1:p2"}},
+		table(proc.Proc{PID: 100, PPID: 1, Name: "claude"}), nil, r, dir)
+	if res := f.Focus("s1"); res.Reason != "detached" || res.Mux != "herdr" {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+}
+
+func TestShouldActivateKittyWithoutRemoteControl(t *testing.T) {
+	get := table(
+		proc.Proc{PID: 100, PPID: 80, Name: "claude"},
+		proc.Proc{PID: 80, PPID: 70, Name: "login"},
+		proc.Proc{PID: 70, PPID: 1, Name: "kitty", Exe: kittyExe},
+	)
+	r := &recorder{answers: map[string]string{"-p 70": "p70\nf21\nn->0x99\n"}}
+	res := newFocuser(session.Session{ID: "s1", PID: 100}, get, nil, r, shortTempDir(t)).Focus("s1")
+	joined := strings.Join(r.calls, "\n")
+	if res.OK || res.Reason != "no-remote-control" || strings.Contains(joined, "kitten") || !strings.Contains(joined, "open -a /Applications/kitty.app") {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+}

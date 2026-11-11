@@ -1,6 +1,6 @@
 # cyberviber
 
-Claude Code session manager for a 2.4" ESP32 touch display (ESP32-2432S024, 240×320). It lists all running Claude Code sessions, shows their state (needs you / ready / working / idle), and tapping one brings its terminal to the front: zellij pane, Tabby tab or Ghostty window.
+Claude Code session manager for a 2.4" ESP32 touch display (ESP32-2432S024, 240×320). It lists all running Claude Code sessions, shows their state (needs you / ready / working / idle), and tapping one brings its terminal to the front: zellij or herdr pane, then the Tabby tab, Ghostty or kitty window.
 
 Status: the Mac daemon, the browser simulator, the jump to the terminal, the USB link and the firmware with all five layouts and eleven themes work, and the backlight dims when nothing happens. Design and architecture are in [spec.md](spec.md); the layouts are in [design/index.html](design/index.html).
 
@@ -20,6 +20,13 @@ Or download a binary from the [releases](https://github.com/d135-1r43/cyberviber
 - sets `cyberviber statusline` as Claude Code's status line, unless you have your own. It prints nothing and reports each session's context usage to the daemon (the `ctx` bar in the btop layout).
 - installs the launchd agent `dev.cyberviber.daemon`, which logs to `~/Library/Logs/cyberviber.log`.
 - installs the Tabby plugin, if Tabby is present. Reload or restart Tabby once afterwards.
+
+kitty is focused through its remote control. Add to `~/.config/kitty/kitty.conf` and restart kitty:
+
+```
+allow_remote_control socket-only
+listen_on unix:/tmp/kitty
+```
 
 `cyberviber uninstall` removes all of it.
 

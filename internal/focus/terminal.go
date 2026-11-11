@@ -15,6 +15,7 @@ import (
 type Terminal struct {
 	App    string // lower-cased app bundle name, e.g. "tabby", "ghostty"
 	Bundle string // e.g. /Applications/Tabby.app
+	AppPID int
 	Chain  []int  // anchor … tab root (the process right below the app)
 	TTY    string // the anchor's TTY (outer TTY)
 }
@@ -37,7 +38,7 @@ func ResolveTerminal(anchor int, get func(int) (proc.Proc, error)) (Terminal, bo
 			return Terminal{}, false
 		}
 		if bundle, ok := appBundle(parent.Exe); ok {
-			t.Bundle = bundle
+			t.Bundle, t.AppPID = bundle, parent.PID
 			name := strings.TrimSuffix(bundle[strings.LastIndex(bundle, "/")+1:], ".app")
 			t.App = strings.ToLower(name)
 			return t, true
