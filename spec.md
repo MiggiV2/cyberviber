@@ -92,7 +92,7 @@ Per session the daemon keeps:
 
 ### 3.2 Jump to terminal (Mac)
 
-**Required:** Ghostty and Tabby on macOS, each **with and without zellij**. Other terminals (iTerm2, Terminal.app) and tmux are out of scope for now; for any unknown terminal the fallback is "activate the app".
+**Required:** Ghostty and Tabby on macOS, each **with and without zellij**; also kitty and herdr. Other terminals (iTerm2, Terminal.app) and tmux are out of scope for now; for any unknown terminal the fallback is "activate the app".
 
 On a tap the device sends the session id and the daemon runs two steps: **(1)** if the session lives in zellij, focus its pane; **(2)** focus the outer terminal window/tab and bring the app to the front.
 
@@ -147,6 +147,14 @@ Tabby has no AppleScript or CLI to focus a tab, so cyberviber ships a small **Ta
 - **Verified** on Tabby 1.0.238 + zellij 0.45.1: the module loads, the shell PID matches the tab root, and a tap selects the right tab and pane.
 
 Fallback without the plugin: activate Tabby via `open -a Tabby` (app level only).
+
+#### herdr
+
+`HERDR_SOCKET_PATH` (the session's API socket) and `HERDR_PANE_ID` (`w1:p1`) identify the pane. The daemon sends `{"id":…,"method":"pane.focus","params":{"pane_id":…}}` as one JSON line to the socket; **verified on herdr 0.9.5:** it also switches workspace and tab. The herdr server is detached like zellij's; clients connect to `herdr-client.sock` next to the API socket, so the lsof peer match finds them. Display label: the socket's directory name, `default` for `~/.config/herdr`.
+
+#### Step 2c: kitty (remote control)
+
+Needs `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` in `kitty.conf`; kitty appends its PID to the path, so the daemon reads the listening socket of the kitty process with `lsof -a -p <kitty> -U`. Then `kitten @ --to unix:<sock> focus-window --match "pid:<anchor> or … or pid:<tab root>"` (a window's `pid` is its child, the tab root) and `open -a kitty.app`. Without a socket: activate only, reason `no-remote-control`.
 
 #### Adding a multiplexer or terminal
 
@@ -219,7 +227,7 @@ internal/hook/       hook payload parsing, terminal info
 internal/serial/     port discovery, line framing, reconnect
 internal/proc/       process tree, process environment
 internal/mux/        multiplexer detection from the environment (one table row per multiplexer)
-internal/focus/      Multiplexer (zellij) and App (ghostty via AppleScript, tabby via plugin socket) registries
+internal/focus/      Multiplexer (zellij, herdr) and App (ghostty via AppleScript, tabby via plugin socket, kitty via remote control) registries
 internal/install/    settings.json hook entries, launchd plist
 tabby-plugin/        Tabby plugin (TypeScript) exposing tab focus over a Unix socket
 firmware/            PlatformIO project for the ESP32

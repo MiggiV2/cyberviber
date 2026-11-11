@@ -2,6 +2,8 @@
 // Adding a multiplexer: one entry in kinds here, one Multiplexer in package focus.
 package mux
 
+import "path/filepath"
+
 // Location is where a session lives inside a multiplexer.
 type Location struct {
 	Kind    string `json:"kind"`
@@ -19,6 +21,15 @@ type kind struct {
 
 var kinds = []kind{
 	{name: "zellij", short: "zj", sessionVar: "ZELLIJ_SESSION_NAME", paneVar: "ZELLIJ_PANE_ID"},
+	{name: "herdr", short: "hd", sessionVar: "HERDR_SOCKET_PATH", paneVar: "HERDR_PANE_ID", label: herdrSession},
+}
+
+// herdrSession names a herdr session by its socket's directory; the default one lives in ~/.config/herdr.
+func herdrSession(socket string) string {
+	if dir := filepath.Base(filepath.Dir(socket)); dir != "herdr" {
+		return dir
+	}
+	return "default"
 }
 
 // Detect reads the multiplexer location from a process environment.

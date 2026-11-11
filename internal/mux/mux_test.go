@@ -28,3 +28,20 @@ func TestShouldListKinds(t *testing.T) {
 		t.Fatalf("%v", k)
 	}
 }
+
+func TestShouldDetectHerdrWithSessionLabel(t *testing.T) {
+	// given
+	getenv := env(map[string]string{"HERDR_SOCKET_PATH": "/Users/m/.config/herdr/herdr.sock", "HERDR_PANE_ID": "w1M:p1"})
+
+	// when
+	loc, ok := Detect(getenv)
+
+	// then
+	if !ok || loc != (Location{Kind: "herdr", Session: "/Users/m/.config/herdr/herdr.sock", Pane: "w1M:p1"}) ||
+		loc.Label() != "default" || loc.Short() != "hd" {
+		t.Fatalf("ok=%v %+v label=%s", ok, loc, loc.Label())
+	}
+	if named := (Location{Kind: "herdr", Session: "/x/sessions/work/herdr.sock"}); named.Label() != "work" {
+		t.Fatalf("label=%s", named.Label())
+	}
+}
