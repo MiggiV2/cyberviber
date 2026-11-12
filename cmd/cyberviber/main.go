@@ -171,11 +171,12 @@ func runDaemon(cfg config.Config) error {
 		return buf.Bytes(), err
 	}
 	focuser := &focus.Focuser{
-		Lookup:   store.Get,
-		Get:      proc.Get,
-		Env:      proc.Env,
-		Run:      func(name string, args ...string) ([]byte, error) { return exec.Command(name, args...).CombinedOutput() },
-		TabbyDir: focus.TabbyDir(),
+		Lookup:    store.Get,
+		Get:       proc.Get,
+		Env:       proc.Env,
+		Run:       func(name string, args ...string) ([]byte, error) { return exec.Command(name, args...).CombinedOutput() },
+		TabbyDir:  focus.TabbyDir(),
+		ScriptDir: os.Getenv("XDG_RUNTIME_DIR"), // per-user, unlike /tmp
 	}
 	api.Focus = func(id string) (bool, string) {
 		res := focuser.Focus(id)
