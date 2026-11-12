@@ -39,12 +39,13 @@ var (
 )
 
 type Focuser struct {
-	Lookup   func(id string) (session.Session, bool)
-	Get      func(pid int) (proc.Proc, error)
-	Env      func(pid int) map[string]string
-	Run      func(name string, args ...string) ([]byte, error)
-	TabbyDir string
-	GOOS     string // defaults to runtime.GOOS
+	Lookup    func(id string) (session.Session, bool)
+	Get       func(pid int) (proc.Proc, error)
+	Env       func(pid int) map[string]string
+	Run       func(name string, args ...string) ([]byte, error)
+	TabbyDir  string
+	ScriptDir string // KWin focus script; defaults to os.TempDir()
+	GOOS      string // defaults to runtime.GOOS
 
 	mu         sync.Mutex
 	ghosttyIDs map[string]string // session id → Ghostty terminal id
@@ -102,11 +103,16 @@ func (f *Focuser) goos() string {
 	return runtime.GOOS
 }
 
-// activate brings the terminal app to the front. On Linux only Hyprland is supported: Wayland
-// does not let an app raise itself, the compositor has to.
+// activate brings the terminal app to the front. On Linux, Hyprland and KDE Plasma are supported:
+// Wayland does not let an app raise itself, the compositor has to. The terminal's own environment
+// tells the desktop apart; the daemon's may lack it when it runs as a service.
 func (f *Focuser) activate(t Terminal) {
 	if f.goos() == "darwin" {
 		f.Run("open", "-a", t.Bundle)
+		return
+	}
+	if f.Env != nil && plasma(f.Env(t.AppPID)) {
+		f.activateKWin(t.AppPID)
 		return
 	}
 	pid := strconv.Itoa(t.AppPID)

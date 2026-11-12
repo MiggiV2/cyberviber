@@ -201,11 +201,17 @@ func TestShouldReportNoPluginAndNotFound(t *testing.T) {
 type recorder struct {
 	calls   []string
 	answers map[string]string // substring of the call → output
+	fails   map[string]bool   // substring of the call → the command fails
 }
 
 func (r *recorder) run(name string, args ...string) ([]byte, error) {
 	call := name + " " + strings.Join(args, " ")
 	r.calls = append(r.calls, call)
+	for k := range r.fails {
+		if strings.Contains(call, k) {
+			return nil, errors.New("exit status 1")
+		}
+	}
 	for k, v := range r.answers {
 		if strings.Contains(call, k) {
 			return []byte(v), nil
@@ -508,5 +514,65 @@ func TestShouldFallBackToLegacyDispatcherOnHyprlandBefore057(t *testing.T) {
 	// then
 	if len(r.calls) != 2 || r.calls[1] != "hyprctl -i 0 dispatch focuswindow pid:70" {
 		t.Fatalf("%v", r.calls)
+	}
+}
+
+func plasmaFocuser(t *testing.T, r *recorder) *Focuser {
+	return &Focuser{Run: r.run, GOOS: "linux", ScriptDir: t.TempDir(),
+		Env: func(pid int) map[string]string {
+			if pid == 70 {
+				return map[string]string{"XDG_CURRENT_DESKTOP": "KDE"}
+			}
+			return nil
+		}}
+}
+
+const kwinLoaded = "method return time=1 sender=:1.12 -> destination=:1.99 serial=4 reply_serial=2\n   int32 7\n"
+
+func TestShouldRaiseTheTerminalThroughKWinOnPlasma(t *testing.T) {
+	// given kitty 70 runs in a Plasma session
+	r := &recorder{answers: map[string]string{"loadScript": kwinLoaded}}
+	f := plasmaFocuser(t, r)
+
+	// when
+	f.activate(Terminal{AppPID: 70})
+
+	// then
+	script := filepath.Join(f.ScriptDir, "cyberviber-kwin-focus.js")
+	want := []string{
+		"dbus-send --session --print-reply --dest=org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript string:cyberviber-focus",
+		"dbus-send --session --print-reply --dest=org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript string:" + script + " string:cyberviber-focus",
+		"dbus-send --session --print-reply --dest=org.kde.KWin /Scripting/Script7 org.kde.kwin.Script.run",
+	}
+	if strings.Join(r.calls, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("calls:\n%s", strings.Join(r.calls, "\n"))
+	}
+	b, err := os.ReadFile(script)
+	if err != nil || !strings.Contains(string(b), "const pid = 70;") {
+		t.Fatalf("script: %v\n%s", err, b)
+	}
+}
+
+func TestShouldUseThePlasma5ScriptPathWhenThePlasma6OneFails(t *testing.T) {
+	r := &recorder{answers: map[string]string{"loadScript": kwinLoaded}, fails: map[string]bool{"/Scripting/Script7": true}}
+	f := plasmaFocuser(t, r)
+
+	f.activate(Terminal{AppPID: 70})
+
+	if last := r.calls[len(r.calls)-1]; last != "dbus-send --session --print-reply --dest=org.kde.KWin /7 org.kde.kwin.Script.run" {
+		t.Fatalf("calls: %v", r.calls)
+	}
+}
+
+func TestShouldNotRunAScriptKWinRefusedToLoad(t *testing.T) {
+	r := &recorder{answers: map[string]string{"loadScript": "method return\n   int32 -1\n"}}
+	f := plasmaFocuser(t, r)
+
+	f.activate(Terminal{AppPID: 70})
+
+	for _, c := range r.calls {
+		if strings.Contains(c, "Script.run") || strings.Contains(c, "hyprctl") {
+			t.Fatalf("unexpected %q in %v", c, r.calls)
+		}
 	}
 }

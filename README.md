@@ -40,9 +40,9 @@ If `~/.vibe` (or `$VIBE_HOME`) exists, `cyberviber install` also appends three h
 - a question (`ask_user_question`) shows as "needs you"; a permission prompt does not (Vibe has no hook for it), the session stays "working".
 - there is no context usage (`ctx`).
 
-## Install (Linux, Hyprland)
+## Install (Linux: Hyprland, KDE Plasma)
 
-Target setup: Arch, Hyprland, kitty, herdr (unit-tested and run in a Linux container, not yet on a real desktop). Needs `ss` (iproute2) and `hyprctl`.
+Target setup: Arch (or CachyOS), Hyprland or KDE Plasma, kitty, herdr. Runs on Hyprland; the Plasma path is unit-tested, not yet tried on a real Plasma desktop. Needs `ss` (iproute2), plus `hyprctl` on Hyprland or `dbus-send` (dbus) on Plasma.
 
 ```sh
 go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest   # or a linux release binary
@@ -50,7 +50,7 @@ go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest   # or a linux 
 sudo usermod -aG uucp "$USER"   # access to /dev/ttyUSB0 (Arch; Debian/Ubuntu: dialout), log in again
 ```
 
-`cyberviber install` does the same as on macOS, but runs the daemon as the systemd user service `cyberviber.service` (logs: `journalctl --user -u cyberviber`). For kitty, add the two remote-control lines above (`listen_on unix:@kitty` also works on Linux). The terminal is raised with `hyprctl dispatch hl.dsp.focus({ window = "pid:<terminal>" })` (Hyprland 0.57+; older versions get `focuswindow pid:<terminal>`), which also switches to its workspace; other compositors only get the pane and tab focused, not the window.
+`cyberviber install` does the same as on macOS, but runs the daemon as the systemd user service `cyberviber.service` (logs: `journalctl --user -u cyberviber`). For kitty, add the two remote-control lines above (`listen_on unix:@kitty` also works on Linux). The terminal is raised with `hyprctl dispatch hl.dsp.focus({ window = "pid:<terminal>" })` (Hyprland 0.57+; older versions get `focuswindow pid:<terminal>`), which also switches to its workspace. On KDE Plasma (5 and 6) the daemon loads a one-shot KWin script over D-Bus (`org.kde.KWin /Scripting`) that activates the terminal's window, unminimizes it and switches to its virtual desktop; which desktop runs is read from the terminal's `XDG_CURRENT_DESKTOP`. Other compositors only get the pane and tab focused, not the window.
 
 
 ```sh
