@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cyberviber — film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:#7aa2f7;--red:#f7768e;--yellow:#e0af68;--green:#9ece6a;--muted:#565f89;
+  --ink:#0b0b10;--paper:#ecebe6;--dim:#8a8a99;
+  --mono:'JetBrains Mono',ui-monospace,monospace;--serif:'Instrument Serif',Georgia,serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{margin:0;width:1920px;height:1080px;overflow:hidden;position:relative;background:var(--ink);color:var(--paper);font-family:var(--mono);-webkit-font-smoothing:antialiased}
+em{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.01em;color:var(--accent)}
+.beat{position:absolute;inset:0;opacity:0;background:var(--ink);overflow:hidden}
+.glow{position:absolute;inset:0;background:radial-gradient(900px 600px at 72% 55%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%)}
+.grain{position:absolute;inset:-50%;z-index:90;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 1.2s step-end infinite}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-4%)}60%{transform:translate(-4%,-1%)}80%{transform:translate(3%,3%)}}
+
+/* editorial frame */
+.fr{position:absolute;z-index:80;font-size:15px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+.fr b{color:var(--accent);font-weight:500}
+.fr.tl{top:40px;left:64px;text-transform:none;letter-spacing:-.3px;font-weight:800;font-size:22px;color:var(--paper)}
+.fr.tr{top:44px;right:64px}
+.fr.bl{bottom:44px;left:64px}
+.fr.br{bottom:44px;right:64px;font-variant-numeric:tabular-nums}
+.rule{position:absolute;z-index:80;left:64px;right:64px;bottom:24px;height:14px;border-top:1px solid rgba(236,235,230,.18);
+  background:repeating-linear-gradient(90deg,rgba(236,235,230,.18) 0 1px,transparent 1px 80px) top/100% 14px no-repeat,
+             repeating-linear-gradient(90deg,rgba(236,235,230,.1) 0 1px,transparent 1px 8px) top/100% 5px no-repeat}
+.rule i{position:absolute;left:0;top:-1px;height:2px;background:var(--accent);width:0}
+
+/* type */
+.serif{font-family:var(--serif);font-weight:400;letter-spacing:-.035em;line-height:.9}
+.big{font-size:200px}
+.h2{font-size:132px}
+.monoH{font-weight:800;letter-spacing:-.05em;line-height:.95}
+.dimt{color:var(--dim)}
+.abs{position:absolute}
+.w{display:inline-block}
+
+/* keyframes */
+@keyframes land{from{opacity:0;transform:translateY(.35em) scale(1.06);filter:blur(10px)}to{opacity:1;transform:none;filter:none}}
+@keyframes up{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.4) rotate(-8deg)}70%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:none}}
+@keyframes drop{from{opacity:0;transform:translateY(-60px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes devIn{from{opacity:0;transform:translateY(160px) rotateX(18deg) rotateY(-40deg) scale(.8)}to{opacity:1;transform:none}}
+@keyframes ripple{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}15%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(2.6)}}
+@keyframes finger{0%{opacity:0;transform:translate(60px,90px)}30%{opacity:1;transform:translate(0,0)}55%{transform:translate(0,0) scale(.9)}75%{transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(40px,60px)}}
+@keyframes lit{from{color:var(--dim);border-color:rgba(236,235,230,.2);box-shadow:none}to{color:var(--ink);background:var(--accent);border-color:var(--accent);box-shadow:0 0 40px -6px var(--accent)}}
+@keyframes front{from{transform:translate(0,0) scale(.94);filter:brightness(.55)}to{transform:translate(-40px,-30px) scale(1);filter:none;box-shadow:0 0 0 2px var(--accent),0 60px 120px -30px rgba(0,0,0,.9),0 0 80px -20px var(--accent)}}
+@keyframes back{to{transform:translate(40px,40px) scale(.94);filter:brightness(.45)}}
+@keyframes tabOn{to{background:var(--accent);color:#0b0b10}}
+@keyframes blink{50%{opacity:.2}}
+.blink{animation:blink 1.2s steps(1) infinite}
+
+/* device: white plastic case, black bezel, canvas screen */
+.persp{position:absolute;perspective:2600px}
+.dev{position:relative;transform-style:preserve-3d}
+.dev .ly{position:absolute;inset:0;border-radius:var(--r);background:#bdb7ab}
+.dev .case{position:absolute;inset:0;border-radius:var(--r);
+  background:radial-gradient(120% 90% at 30% 15%,#fbf9f4,#e9e5dc 55%,#d2cdc2);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.6),inset -10px -14px 30px rgba(0,0,0,.08)}
+.dev .bz{position:absolute;background:#0d0d10;border-radius:calc(var(--r)*.22);box-shadow:inset 0 2px 8px rgba(0,0,0,.8),0 0 0 3px rgba(0,0,0,.05)}
+.dev canvas{position:absolute;display:block;border-radius:4px}
+.dev .gl{position:absolute;pointer-events:none;border-radius:4px;background:linear-gradient(125deg,rgba(255,255,255,.12),transparent 35%)}
+.dev .foot{position:absolute;border-radius:16px;background:linear-gradient(#f2efe8,#cfc9bd)}
+.shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.7),transparent)}
+
+/* chips (beat 1) */
+.chips{position:absolute;left:0;right:0;top:250px;display:flex;justify-content:center;align-items:flex-start;gap:16px}
+.chip{box-sizing:border-box;height:68px;border:1px solid rgba(236,235,230,.22);padding:0 22px;font-size:24px;line-height:32px;display:flex;gap:14px;align-items:center;background:#111118;white-space:nowrap}
+.chip b{display:block;flex:none;width:24px;height:32px;line-height:32px;overflow:hidden;text-align:center;font-variant-emoji:text}
+
+/* states (beat 4) */
+.states{position:absolute;left:120px;right:120px;top:470px;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(236,235,230,.14)}
+.st{padding:40px 30px;border-right:1px solid rgba(236,235,230,.14)}
+.st:last-child{border-right:0}
+.st .g{font-size:230px;font-weight:800;line-height:1;display:block;margin-bottom:24px;height:230px}
+.st h3{font-size:30px;text-transform:uppercase;letter-spacing:3px;margin-bottom:12px}
+.st p{color:var(--dim);font-size:21px;line-height:1.5}
+
+/* terminal windows (beat 6) */
+.term{position:absolute;background:#0a0a0d;border:1px solid #26262e;border-radius:12px;overflow:hidden;box-shadow:0 40px 80px -30px rgba(0,0,0,.8);color:#d8d8e0}
+.term .tb{display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid #1d1d24;font-size:17px;color:#6b6b78}
+.term .tb i{width:13px;height:13px;border-radius:50%;background:#2a2a33}
+.term .tb span{margin-left:auto}
+.tabs{display:flex;border-bottom:1px solid #1d1d24;font-size:17px}
+.tabs div{padding:10px 18px;color:#8a8a99;border-right:1px solid #1d1d24}
+.term pre{padding:24px 26px;font-family:var(--mono);font-size:21px;line-height:1.75;white-space:pre}
+.pchip{display:inline-block;border:1px solid rgba(236,235,230,.2);padding:10px 20px;font-size:24px;color:var(--dim);margin-right:12px}
+
+/* pipeline (beat 7) */
+.pipe{position:absolute;left:120px;right:120px;top:500px;display:grid;grid-template-columns:repeat(5,1fr)}
+.node{padding-right:40px;position:relative}
+.node .box{border:1px solid rgba(236,235,230,.25);padding:28px 24px;font-weight:700;font-size:30px;background:var(--ink);position:relative;z-index:1}
+.node .box small{display:block;font-weight:400;color:var(--dim);font-size:18px;margin-top:6px}
+.node p{color:var(--dim);font-size:19px;margin-top:22px;line-height:1.5}
+.node .wire{position:absolute;top:56px;left:calc(100% - 40px);width:40px;height:2px;background:var(--accent)}
+.pkt{position:absolute;top:50px;width:16px;height:16px;background:var(--accent);box-shadow:0 0 26px var(--accent);z-index:3;opacity:0}
+
+/* layouts (beat 8) */
+.gal{position:absolute;left:120px;right:120px;top:420px;display:grid;grid-template-columns:repeat(5,1fr);gap:36px}
+.bez{padding:12px;border:1px solid rgba(236,235,230,.14);background:#0c0c0e}
+.bez canvas{display:block;width:100%;aspect-ratio:3/4}
+.lay h3{font-size:24px;font-weight:700;margin-top:20px}
+.lay h3 span{color:var(--accent);margin-right:12px}
+
+/* themes (beat 9) */
+.themes{position:absolute;left:820px;top:440px;width:980px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(236,235,230,.14);border:1px solid rgba(236,235,230,.14)}
+.th{background:var(--ink);padding:18px 16px;font-size:19px;position:relative}
+.th .sw{display:flex;height:44px;margin-bottom:12px}
+.th .sw i{flex:1}.th .sw i:first-child{flex:3}
+
+/* end card */
+.btn{display:inline-flex;align-items:center;gap:12px;padding:20px 28px;border:1px solid var(--paper);font-size:24px;font-weight:700;margin-right:18px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- B1: hook [0,2) -->
+<section class="beat" data-s="0" data-e="2" data-l="01 — hook">
+  <div class="chips" id="chips"></div>
+  <div class="abs" style="left:0;right:0;top:470px;text-align:center" data-x="1">
+    <div class="monoH" style="font-size:150px"><span class="w" data-a="land" data-b="0" data-o=".1">7 Claudes</span> <span class="w" data-a="land" data-b="0.25" style="color:var(--yellow)">running.</span></div>
+  </div>
+  <div class="abs" style="left:0;right:0;top:440px;text-align:center">
+    <div class="monoH" style="font-size:170px"><span class="w" data-a="land" data-b="1">One <span style="color:var(--red)">needs you.</span></span></div>
+    <div class="serif" style="font-size:150px;margin-top:20px"><em class="w" data-a="land" data-b="1.5" style="color:var(--paper)">Which one?</em></div>
+  </div>
+</section>
+
+<!-- B2: title [2,4) -->
+<section class="beat" data-s="2" data-e="4" data-l="02 — cyberviber">
+  <div class="glow"></div>
+  <div class="abs" style="left:120px;top:300px">
+    <h1 class="serif big"><span class="w monoH" style="font-family:var(--mono);font-weight:800;font-size:.52em;color:var(--accent);vertical-align:.12em" data-a="pop" data-b="2">›_</span> <span class="w" data-a="land" data-b="2.1">Every</span> <span class="w" data-a="land" data-b="2.25">Claude,</span><br><em class="w" data-a="land" data-b="2.5">at a glance.</em></h1>
+    <p data-a="up" data-b="3" style="margin-top:44px;font-size:28px;color:var(--dim);max-width:820px;line-height:1.55"><b style="color:var(--paper);font-weight:500">cyberviber</b> — a 2.4″ touch display for your Claude Code sessions.</p>
+  </div>
+  <div class="persp" style="left:1270px;top:220px" id="d-title"></div>
+</section>
+
+<!-- B3: states [4,6) -->
+<section class="beat" data-s="4" data-e="6" data-l="03 — four states">
+  <div class="abs" style="left:120px;top:150px"><h2 class="serif h2"><span class="w" data-a="land" data-b="4">Four states,</span><br><em class="w" data-a="land" data-b="4.25">sorted by urgency.</em></h2></div>
+  <div class="states">
+    <div class="st" data-a="up" data-b="4.5"><b class="g blink" style="color:var(--red)">!</b><h3 style="color:var(--red)">needs you</h3><p>A permission prompt or a question.</p></div>
+    <div class="st" data-a="up" data-b="4.75"><b class="g" style="color:var(--green)">✓</b><h3 style="color:var(--green)">ready</h3><p>Done · 3 files changed</p></div>
+    <div class="st" data-a="up" data-b="5"><b class="g spin" style="color:var(--yellow)">✻</b><h3 style="color:var(--yellow)">working</h3><p>Thinking or running tools.</p></div>
+    <div class="st" data-a="up" data-b="5.25"><b class="g" style="color:var(--muted)">◦</b><h3 style="color:var(--muted)">idle</h3><p>No events for ten minutes.</p></div>
+  </div>
+</section>
+
+<!-- B4: needs you [6,8) -->
+<section class="beat" data-s="6" data-e="8" data-l="04 — needs you">
+  <div class="glow" id="redglow" style="background:radial-gradient(800px 700px at 34% 55%,rgba(247,118,142,.22),transparent 70%);opacity:0"></div>
+  <div class="persp" style="left:240px;top:150px" id="d-need"></div>
+  <div class="abs" style="left:1060px;top:330px">
+    <div class="monoH" style="font-size:120px" data-a="land" data-b="6.5">Needs you?</div>
+    <div class="serif" style="font-size:190px;margin-top:10px"><em class="w" data-a="land" data-b="6.75" style="color:var(--red)">It blinks.</em></div>
+    <p data-a="up" data-b="7.25" style="font-size:28px;color:var(--dim);margin-top:40px;line-height:1.6">Listed first. Wakes the backlight.</p>
+  </div>
+</section>
+
+<!-- B5: tap [8,10) -->
+<section class="beat" data-s="8" data-e="10" data-l="05 — the jump">
+  <div class="glow"></div>
+  <div class="persp" style="left:150px;top:200px" id="d-tap"></div>
+  <div class="abs" id="tapfx" style="left:0;top:0"></div>
+  <div class="abs" style="left:780px;top:120px"><h2 class="serif" style="font-size:110px;letter-spacing:-.035em;line-height:.92"><span class="w" data-a="land" data-b="8">Tap to focus</span> <em class="w" data-a="land" data-b="8.25">the terminal.</em></h2></div>
+  <div class="term" style="left:880px;top:420px;width:880px;height:420px;animation:back .5s var(--ease) 0s both" data-a="back" data-b="9" data-d=".5"><div class="tb"><i></i><i></i><i></i><span>foot — zellij · cfg</span></div><pre style="color:#5d5d6b">~/dotfiles ❯ claude
+✓ Done · 3 files changed</pre></div>
+  <div class="term" style="left:820px;top:370px;width:960px;height:450px" data-a="front" data-b="9" data-d=".5"><div class="tb"><i></i><i></i><i></i><span>Ghostty</span></div>
+    <div class="tabs"><div data-a="tabOn" data-b="9.25" data-d=".2">1 cyberviber</div><div>2 explore-api</div><div>6 quarkus-svc</div></div>
+<pre><span style="color:#5d5d6b">~/cyberviber</span> <span style="color:var(--accent)">❯</span> claude
+<span style="color:var(--red)">● Allow Bash: pio run -t upload?</span>
+  <span style="color:var(--accent)">❯ 1. Yes</span>
+    2. No</pre></div>
+  <div class="abs" style="left:820px;top:880px"><span class="pchip" data-a="lit" data-b="9" data-d=".25">pane</span><span class="pchip" data-a="lit" data-b="9.25" data-d=".25">→ tab</span><span class="pchip" data-a="lit" data-b="9.5" data-d=".25">→ window</span></div>
+</section>
+
+<!-- B6: pipeline [10,12) -->
+<section class="beat" data-s="10" data-e="12" data-l="06 — how it works">
+  <div class="abs" style="left:120px;top:150px"><h2 class="serif h2"><span class="w" data-a="land" data-b="10">Hooks in,</span> <em class="w" data-a="land" data-b="10.25">taps out.</em></h2></div>
+  <div class="pipe" id="pipe">
+    <div class="node" data-a="up" data-b="10.25"><div class="box">claude<small>hooks</small></div><p>Every hook event goes to localhost.</p><i class="wire"></i></div>
+    <div class="node" data-a="up" data-b="10.35"><div class="box">cyberviberd<small>go daemon</small></div><p>Keeps the session list.</p><i class="wire"></i></div>
+    <div class="node" data-a="up" data-b="10.45"><div class="box">usb serial<small>json lines</small></div><p>One cable. No Wi-Fi.</p><i class="wire"></i></div>
+    <div class="node" data-a="up" data-b="10.55"><div class="box">esp32 + lvgl<small>240×320</small></div><p>Draws, reports taps.</p><i class="wire"></i></div>
+    <div class="node" data-a="up" data-b="10.65"><div class="box">your terminal<small>pane → tab → window</small></div><p class="serif" id="termname" style="font-size:54px;color:var(--paper);letter-spacing:-.02em;margin-top:18px"></p></div>
+    <i class="pkt" id="pkt"></i>
+  </div>
+</section>
+
+<!-- B7: layouts [12,14) -->
+<section class="beat" data-s="12" data-e="14" data-l="07 — layouts">
+  <div class="abs" style="left:120px;top:130px"><h2 class="serif h2"><span class="w" data-a="land" data-b="12">Five layouts,</span><br><em class="w" data-a="land" data-b="12.25">one glance each.</em></h2></div>
+  <div class="gal" id="gal"></div>
+</section>
+
+<!-- B8: themes [14,16) -->
+<section class="beat" data-s="14" data-e="16" data-l="08 — themes" id="b-themes">
+  <div class="glow"></div>
+  <div class="persp" style="left:170px;top:200px" id="d-theme"></div>
+  <div class="abs" style="left:820px;top:140px"><h2 class="serif h2"><span class="w" data-a="land" data-b="14">Eleven themes</span><br><em class="w" data-a="land" data-b="14.25">from Omarchy.</em></h2></div>
+  <div class="themes" id="themes" data-a="up" data-b="14.25"></div>
+</section>
+
+<!-- B9: end card [16,19.5) -->
+<section class="beat" data-s="16" data-e="99" data-l="09 — cyberviber.de">
+  <div class="glow"></div>
+  <div class="abs" style="left:120px;top:250px">
+    <h1 class="serif big"><span class="w monoH" style="font-family:var(--mono);font-weight:800;font-size:.52em;color:var(--accent);vertical-align:.12em" data-a="pop" data-b="16">›_</span> <span class="w" data-a="land" data-b="16.1">Every</span> <span class="w" data-a="land" data-b="16.2">Claude,</span><br><em class="w" data-a="land" data-b="16.4">at a glance.</em></h1>
+    <div style="margin-top:60px" data-a="up" data-b="17"><span class="btn pri">cyberviber.de ⟶</span><span class="btn">github.com/d135-1r43/cyberviber</span></div>
+    <p data-a="fade" data-b="17.5" style="margin-top:34px;font-size:22px;color:var(--dim)">Open source · ESP32 + Go · macOS &amp; Linux · also shows Mistral Vibe sessions.</p>
+  </div>
+  <div class="persp" style="left:1300px;top:200px" id="d-end"></div>
+</section>
+
+<div class="fr tl"><b>›</b> cyberviber</div>
+<div class="fr tr">ESP32-2432S024R · <b>240×320</b></div>
+<div class="fr bl" id="lab">01 — hook</div>
+<div class="fr br" id="tc">00:00.00</div>
+<div class="rule"><i id="prog"></i></div>
+<div class="grain"></div>
+
+<script>
+/* timing: track at ~110 BPM, starts at scene 0 */
+const BPM=110, MUSIC_AT=0, DROP=0, BAR=4*60/BPM, DUR=43;
+const bar=n=>MUSIC_AT+DROP+n*BAR;
+const $=id=>document.getElementById(id);
+
+/* ---- data, from site/index.html ---- */
+const THEMES={
+ 'tokyo-night':{name:'Tokyo Night',bg:'#1a1b26',bg2:'#16161e',surface:'#24283b',border:'#3b4261',fg:'#c0caf5',muted:'#565f89',accent:'#7aa2f7',red:'#f7768e',yellow:'#e0af68',green:'#9ece6a'},
+ 'catppuccin':{name:'Catppuccin',bg:'#1e1e2e',bg2:'#181825',surface:'#313244',border:'#45475a',fg:'#cdd6f4',muted:'#7f849c',accent:'#cba6f7',red:'#f38ba8',yellow:'#f9e2af',green:'#a6e3a1'},
+ 'gruvbox':{name:'Gruvbox',bg:'#282828',bg2:'#1d2021',surface:'#3c3836',border:'#504945',fg:'#ebdbb2',muted:'#928374',accent:'#d79921',red:'#fb4934',yellow:'#fabd2f',green:'#b8bb26'},
+ 'everforest':{name:'Everforest',bg:'#2d353b',bg2:'#232a2e',surface:'#343f44',border:'#475258',fg:'#d3c6aa',muted:'#859289',accent:'#a7c080',red:'#e67e80',yellow:'#dbbc7f',green:'#a7c080'},
+ 'kanagawa':{name:'Kanagawa',bg:'#1f1f28',bg2:'#16161d',surface:'#2a2a37',border:'#363646',fg:'#dcd7ba',muted:'#727169',accent:'#7e9cd8',red:'#e46876',yellow:'#e6c384',green:'#98bb6c'},
+ 'nord':{name:'Nord',bg:'#2e3440',bg2:'#242933',surface:'#3b4252',border:'#4c566a',fg:'#eceff4',muted:'#7b88a1',accent:'#88c0d0',red:'#bf616a',yellow:'#ebcb8b',green:'#a3be8c'},
+ 'rose-pine':{name:'Rosé Pine',bg:'#191724',bg2:'#13111d',surface:'#26233a',border:'#403d52',fg:'#e0def4',muted:'#6e6a86',accent:'#c4a7e7',red:'#eb6f92',yellow:'#f6c177',green:'#9ccfd8'},
+ 'matte-black':{name:'Matte Black',bg:'#121212',bg2:'#0a0a0a',surface:'#1e1e1e',border:'#333333',fg:'#bebebe',muted:'#6b6b6b',accent:'#e68e0d',red:'#d35f5f',yellow:'#ffc107',green:'#8fb573'},
+ 'osaka-jade':{name:'Osaka Jade',bg:'#111c18',bg2:'#0b1411',surface:'#1b2b24',border:'#2c4237',fg:'#c1c497',muted:'#53685b',accent:'#2dd5b7',red:'#ff5345',yellow:'#e5c736',green:'#549e6a'},
+ 'ristretto':{name:'Ristretto',bg:'#2c2525',bg2:'#211c1c',surface:'#403838',border:'#5b5353',fg:'#fff1f3',muted:'#948a8b',accent:'#f38d70',red:'#fd6883',yellow:'#f9cc6c',green:'#adda78'},
+ 'catppuccin-latte':{name:'Latte',bg:'#eff1f5',bg2:'#e6e9ef',surface:'#ccd0da',border:'#bcc0cc',fg:'#4c4f69',muted:'#8c8fa1',accent:'#8839ef',red:'#d20f39',yellow:'#df8e1d',green:'#40a02b'},
+};
+const TK=Object.keys(THEMES), TN=THEMES['tokyo-night'];
+const BASE=[
+ {id:1,name:'cyberviber',branch:'main',term:'Ghostty',tab:1,state:'input',act:'Allow Bash: pio run -t upload?',since:42,ctx:38},
+ {id:2,name:'explore-api',branch:'feat/oauth',term:'Ghostty',tab:2,state:'working',act:'Edit AuthResource.java',since:187,ctx:64},
+ {id:3,name:'dotfiles',branch:'main',term:'foot',mx:'zellij',ms:'cfg',state:'done',act:'Done · 3 files changed',since:305,ctx:21},
+ {id:4,name:'renovate-sweep',branch:'main',term:'kitty',tab:4,mx:'zellij',ms:'work',state:'working',act:'Bash: mvn verify',since:64,ctx:82},
+ {id:5,name:'foh-wing',branch:'rider-2026',term:'Tabby',tab:2,state:'idle',act:'No activity',since:2710,ctx:12},
+ {id:6,name:'quarkus-svc',branch:'fix/cve',term:'Ghostty',tab:6,mx:'herdr',ms:'svc',state:'working',act:'Thinking…',since:15,ctx:47},
+ {id:7,name:'homelab',branch:'main',term:'Tabby',tab:3,state:'done',act:'Done · opened PR #42',since:920,ctx:70},
+];
+const ORDER={input:0,done:1,working:2,idle:3};
+const SPIN=['·','✢','✶','✻','✽','✻','✶','✢'].map(g=>g+'︎');
+const LABEL={input:'needs you',done:'ready',working:'working',idle:'idle'};
+const fmt=sec=>sec<60?`${sec}s`:sec<3600?`${Math.floor(sec/60)}m${String(sec%60).padStart(2,'0')}`:`${Math.floor(sec/3600)}h${String(Math.floor(sec%3600/60)).padStart(2,'0')}`;
+const where=s=>[s.term,s.mx?`${s.mx} ${s.ms}`:(s.tab?`tab ${s.tab}`:'')].filter(Boolean).join(' · ');
+const F=(w,s)=>`${w} ${s}px "JetBrains Mono",ui-monospace,monospace`;
+/* sessions at time t; t0 is the virtual second the state began */
+function sessions(t,mod){
+  const L=BASE.map(s=>({...s,t0:-s.since}));
+  if(mod) mod(L,t);
+  return L.sort((a,b)=>ORDER[a.state]-ORDER[b.state]||b.t0-a.t0);
+}
+
+/* ---- the site's screen renderer, on a virtual clock ---- */
+function drawScreen(ctx,layout,T,L,t,o={}){
+  const c=L.reduce((c,s)=>(c[s.state]++,c),{input:0,done:0,working:0,idle:0}), hits=[];
+  const col=k=>({input:T.red,done:T.green,working:T.yellow,idle:T.muted})[k];
+  const frame=Math.floor(t/.12);
+  const glyph=s=>s.state==='working'?SPIN[frame%SPIN.length]:{input:'!',done:'✓',idle:'◦'}[s.state];
+  const on=Math.floor(t/.6)%2===0, ago=s=>fmt(Math.max(0,Math.floor(t-s.t0))), clock='13:26';
+  const rect=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
+  const box=(x,y,w,h,c,lw=1)=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.strokeRect(x+lw/2,y+lw/2,w-lw,h-lw)};
+  const txt=(s,x,y,c,font,align='left',max)=>{ctx.font=font;ctx.fillStyle=c;ctx.textAlign=align;ctx.textBaseline='alphabetic';s=String(s);
+    if(max&&ctx.measureText(s).width>max){while(s.length>1&&ctx.measureText(s+'…').width>max)s=s.slice(0,-1);s+='…'}
+    ctx.fillText(s,x,y);return ctx.measureText(s).width};
+  const wrap=(s,x,y,c,font,max,lines,lh)=>{ctx.font=font;const words=s.split(' ');let line='',n=0;
+    for(let i=0;i<words.length;i++){const q=line?line+' '+words[i]:words[i];
+      if(ctx.measureText(q).width>max&&line){if(n===lines-1){txt(line+' '+words.slice(i).join(' '),x,y+n*lh,c,font,'left',max);return}txt(line,x,y+n*lh,c,font);n++;line=words[i]}else line=q}
+    if(line)txt(line,x,y+n*lh,c,font,'left',max)};
+  ctx.setTransform(ctx.canvas.width/240,0,0,ctx.canvas.height/320,0,0);
+  rect(0,0,240,320,T.bg);
+  if(layout==='waybar'){
+    rect(0,0,240,20,T.bg2);rect(0,19,240,1,T.border);
+    L.forEach((s,i)=>{const x=2+i*16;if(s.state==='input'){rect(x,0,15,20,T.red);txt(i+1,x+7.5,14,T.bg,F(700,11),'center')}else txt(i+1,x+7.5,14,col(s.state),F(700,11),'center')});
+    txt(clock,150,14,T.fg,F(400,11),'center');txt(`◉ ${L.length}`,236,14,T.muted,F(400,11),'right');
+    L.slice(0,6).forEach((s,i)=>{const y=20+i*44;
+      rect(0,y,3,44,col(s.state));rect(0,y+43,240,1,T.surface);
+      const w=txt(s.name,11,y+18,T.fg,F(700,13),'left',150);
+      txt(' '+s.branch,11+w,y+18,T.muted,F(400,11),'left',Math.max(0,180-w));
+      txt(s.act,11,y+34,s.state==='input'?T.red:T.muted,F(400,11),'left',180);
+      if(!(s.state==='input'&&!on))txt(glyph(s),232,y+19,col(s.state),F(800,14),'right');
+      txt(ago(s),232,y+36,T.muted,F(400,11),'right');
+      hits.push({x:0,y,w:240,h:44,id:s.id})});
+    rect(0,286,240,34,T.bg2);rect(0,286,240,1,T.border);
+    rect(8,292,224,4,T.surface);let x=8;const tot=L.length||1;
+    ['input','done','working','idle'].forEach(k=>{if(!c[k])return;const w=224*c[k]/tot;rect(x,292,w-1,4,col(k));x+=w});
+    [['input','!'],['done','✓'],['working','✻︎'],['idle','◦']].forEach(([k,g],i)=>txt(`${g} ${c[k]}`,8+i*44,312,col(k),F(700,11)));
+  }else if(layout==='tiling'){
+    rect(0,0,240,18,T.bg2);txt('cyberviber',7,13,T.accent,F(800,10));txt(clock,120,13,T.fg,F(400,10),'center');
+    txt(String(L.length),233,13,T.muted,F(400,10),'right');if(c.input)txt(`${c.input}! `,233-ctx.measureText(String(L.length)).width,13,T.red,F(400,10),'right');
+    const n=L.length,cols=n<=2?1:n<=6?2:3,rows=Math.max(1,Math.ceil(n/cols)),rem=n%cols;
+    const gw=(230-(cols-1)*5)/cols,gh=(297-(rows-1)*5)/rows;
+    L.forEach((s,i)=>{const r=Math.floor(i/cols),cc=i%cols,span=(i===n-1&&rem)?cols-rem+1:1;
+      const x=5+cc*(gw+5),y=23+r*(gh+5),w=gw*span+(span-1)*5,h=gh;
+      box(x,y,w,h,s.state==='input'?(on?T.red:T.border):T.border,2);
+      txt(s.name,x+6,y+15,T.fg,F(700,12),'left',w-(w>84?44:12));if(w>84)txt(ago(s),x+w-6,y+15,T.muted,F(400,10),'right');
+      const big=h>=140;txt(glyph(s),x+6,y+(big?54:44),col(s.state),F(800,big?34:24));
+      if(w>84)txt(LABEL[s.state].toUpperCase(),x+(big?38:30),y+(big?48:40),col(s.state),F(700,10));
+      if(h>84)wrap(s.act,x+6,y+(big?76:62),s.state==='input'?T.fg:T.muted,F(400,big?11:10),w-12,big?3:2,12);
+      if(w>84)txt(`${where(s)} · ${s.branch}`,x+6,y+h-7,T.muted,F(400,9),'left',w-12)});
+  }else if(layout==='btop'){
+    const rbox=(x,y,w,h)=>{ctx.strokeStyle=T.border;ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x+.5,y+.5,w-1,h-1,6);ctx.stroke()};
+    const title=(s,x,y,c=T.fg,w=700,align='left')=>{ctx.font=F(w,10);const tw=ctx.measureText(s).width;rect(align==='left'?x-3:x-tw-3,y-6,tw+6,12,T.bg);txt(s,x,y+4,c,F(w,10),align)};
+    rbox(4,8,232,80);title('¹status',12,8);title(clock,228,8,T.muted,400,'right');
+    [['input','need'],['done','ready'],['working','busy'],['idle','idle']].forEach(([k,lab],i)=>{const y=22+i*15,f=Math.round(c[k]/(L.length||1)*14);
+      txt(lab,12,y+8,T.muted,F(400,10));for(let j=0;j<14;j++)rect(50+j*9,y+1,8,7,j<f?col(k):T.surface);txt(c[k],226,y+8,col(k),F(700,10),'right')});
+    rbox(4,98,232,214);title('²sessions',12,98);title(`${L.length} total`,228,98,T.muted,400,'right');
+    ['','name','ctx','time'].forEach((h,i)=>txt(h.toUpperCase(),[10,28,150,226][i],118,T.muted,F(400,9),i===3?'right':'left'));
+    L.slice(0,8).forEach((s,i)=>{const y=124+i*22;
+      if(s.state==='input')rect(5,y,230,22,T.surface);
+      txt(glyph(s),17,y+15,col(s.state),F(800,11),'center');
+      txt(s.name,28,y+15,s.state==='idle'?T.muted:T.fg,F(400,11),'left',116);
+      const f=Math.round(s.ctx/20),cc=s.ctx>=80?T.red:s.ctx>=50?T.yellow:T.green;
+      for(let j=0;j<5;j++)rect(150+j*7,y+7,6,8,j<f?cc:(s.state==='input'?T.border:T.surface));
+      txt(ago(s),226,y+15,T.muted,F(400,10),'right')});
+    title('tap → focus',12,312,T.muted,400);
+  }else if(layout==='walker'){
+    rect(0,0,240,320,T.bg2);rect(8,8,224,304,T.bg);box(8,8,224,304,T.accent,2);
+    txt('›',20,31,T.accent,F(800,13));const w=txt('claude',32,31,T.fg,F(400,13));if(on)txt('▏',30+w,31,T.accent,F(400,13));
+    txt(`${L.length} running`,222,30,T.muted,F(400,11),'right');rect(10,44,220,1,T.border);
+    L.slice(0,5).forEach((s,i)=>{const y=48+i*48;
+      if(i===0)rect(14,y,212,48,T.surface);
+      box(20,y+9,30,30,col(s.state),2);txt(glyph(s),35,y+30,col(s.state),F(800,15),'center');
+      txt(s.name,59,y+21,i===0?T.accent:T.fg,F(700,13),'left',110);
+      txt(s.act,59,y+36,s.state==='input'?T.red:T.muted,F(400,11),'left',110);
+      txt(s.mx?`${s.mx.slice(0,2)}:${s.ms}`:s.tab?`tab ${s.tab}`:s.term,220,y+21,T.muted,F(400,10),'right',50);
+      txt(ago(s),220,y+35,T.muted,F(400,10),'right')});
+    rect(10,290,220,1,T.border);txt('tap to focus terminal',20,304,T.muted,F(400,9));
+    if(L.length>5)txt(`+${L.length-5} ↓`,220,304,T.muted,F(400,9),'right');
+  }else if(layout==='hyprlock'){
+    const top=L[0],date='sat, 14 nov',rest=L.slice(1),chips=rest.slice(0,6);
+    const sc=col(top.state);
+    txt(`${clock} · ${date}`,120,16,T.muted,F(400,11),'center');
+    box(10,26,220,180,sc,2);
+    if(top.state!=='input'||on)txt('●',20,46,sc,F(800,10));txt(top.state==='input'?'NEEDS YOU':'YOUR TURN',32,46,sc,F(800,10));
+    txt(`1/${top.state==='input'?c.input:c.done}`,220,46,T.muted,F(400,10),'right');
+    txt(top.name,20,76,T.fg,F(800,22),'left',200);
+    wrap(top.act,20,98,T.fg,F(400,12),200,3,16);
+    txt(`${where(top)} · ${ago(top)}`,20,152,T.muted,F(400,10),'left',200);
+    rect(20,162,200,34,sc);txt('TAP TO JUMP ⟶',120,184,T.bg,F(800,12),'center');
+    hits.push({x:10,y:26,w:220,h:180,id:top.id});
+    chips.forEach((s,i)=>{const x=10+(i%2)*112.5,y=216+Math.floor(i/2)*31;box(x,y,107.5,26,T.border);
+      txt(glyph(s),x+8,y+17,col(s.state),F(800,11));txt(s.name,x+21,y+17,T.fg,F(400,11),'left',80)});
+  }
+  if(o.flash&&t>=o.flash.t&&t-o.flash.t<.45){const h=hits.find(x=>x.id===o.flash.id);if(h){ctx.globalAlpha=1-(t-o.flash.t)/.45;rect(h.x,h.y,h.w,h.h,T.accent);ctx.globalAlpha=1}}
+  if(o.toast&&t>=o.toast.t&&t-o.toast.t<2.4){const d=t-o.toast.t,a=Math.min(1,d/.15,(2.4-d)/.3);ctx.globalAlpha=Math.max(0,a);
+    rect(14,262,212,44,T.bg);box(14,262,212,44,T.accent,2);
+    txt(`⟶ ${o.toast.where}`,24,280,T.accent,F(700,11),'left',196);txt(`focusing ${o.toast.name}`,24,296,T.muted,F(400,11),'left',196);ctx.globalAlpha=1}
+}
+
+/* ---- device builder ---- */
+const draws=[];
+function device(host,W,anim){
+  const H=W*1.2,r=W*.16,el=document.createElement('div');
+  el.className='dev';el.style.cssText=`width:${W}px;height:${H}px;--r:${r}px`;
+  let h='';for(let i=8;i>0;i--)h+=`<div class="ly" style="transform:translateZ(${-i*W*.03}px);filter:brightness(${.75+i*.0})"></div>`;
+  const bw=W*.64,bh=bw*1.3,bx=(W-bw)/2,by=W*.11,p=W*.035;
+  h+=`<div class="case"></div><div class="bz" style="left:${bx}px;top:${by}px;width:${bw}px;height:${bh}px"></div>`;
+  const sw=bw-2*p,sh=sw*4/3;
+  h+=`<canvas width="${Math.round(sw*2)}" height="${Math.round(sh*2)}" style="left:${bx+p}px;top:${by+p*.8}px;width:${sw}px;height:${sh}px"></canvas>`;
+  h+=`<div class="gl" style="left:${bx+p}px;top:${by+p*.8}px;width:${sw}px;height:${sh}px"></div>`;
+  el.innerHTML=h;
+  const wrap=document.createElement('div');wrap.style.cssText=`position:relative;width:${W}px;height:${H+W*.2}px`;
+  wrap.innerHTML=`<div class="shadow" style="left:${-W*.15}px;top:${H-W*.02}px;width:${W*1.3}px;height:${W*.32}px"></div><div class="dev foot" style="position:absolute;left:${W*.12}px;top:${H-W*.04}px;width:${W*.76}px;height:${W*.1}px;border-radius:${W*.03}px;background:linear-gradient(#f2efe8,#c9c3b7)"></div>`;
+  wrap.appendChild(el);host.appendChild(wrap);
+  return {el,wrap,ctx:el.querySelector('canvas').getContext('2d'),screen:{x:bx+p,y:by+p*.8,w:sw,h:sh}};
+}
+const ani=(el,name,b,d=.7,ease='var(--ease)')=>el.style.animation=`${name} ${d}s ${ease} ${Math.max(0,bar(b)-.08)}s both`;
+
+/* B1 chips */
+BASE.forEach((s,i)=>{const d=document.createElement('div');d.className='chip';d.innerHTML=`<b>✻</b>${s.name}`;
+  d.dataset.a='drop';d.dataset.b=String(i*.07);$('chips').appendChild(d)});
+const chipEls=[...$('chips').children];
+
+/* B2 title device */
+const dTitle=device($('d-title'),470);ani(dTitle.wrap,'devIn',3,1.1);
+dTitle.el.style.transform='rotateY(-24deg) rotateX(6deg)';
+draws.push({b:[2,4],f:t=>drawScreen(dTitle.ctx,'waybar',TN,sessions(t),t)});
+
+/* B4 needs you */
+const dNeed=device($('d-need'),560);
+draws.push({b:[6,8],f:t=>{
+  const T6=bar(6.5);
+  drawScreen(dNeed.ctx,'waybar',TN,sessions(t,L=>{const s=L[0];if(t<T6){s.state='working';s.act='Bash: pio run';s.t0=-95}else{s.t0=T6}}),t);
+  $('redglow').style.opacity=t<T6?0:(Math.floor((t-T6)/.6)%2===0?1:.35);
+  dNeed.el.style.transform=`rotateY(${18-6*(t-bar(6))/(2*BAR)}deg) rotateX(4deg)`;
+}});
+
+/* B5 tap */
+const dTap=device($('d-tap'),520), TAP=bar(8.75);
+dTap.el.style.transform='rotateY(10deg)';
+{const fx=$('tapfx'),sx=150+dTap.screen.x+dTap.screen.w*.5,sy=200+dTap.screen.y+dTap.screen.h*(179/320);
+ fx.innerHTML=`<div class="abs" style="left:${sx}px;top:${sy}px;width:140px;height:140px;border-radius:50%;border:4px solid var(--accent);box-shadow:0 0 40px var(--accent);animation:ripple .8s ease-out ${TAP}s both"></div>
+ <div class="abs" style="left:${sx-20}px;top:${sy-10}px;width:60px;height:60px;border-radius:50%;background:rgba(236,235,230,.85);box-shadow:0 10px 30px rgba(0,0,0,.6);animation:finger 1.2s var(--ease) ${TAP-.45}s both"></div>`}
+draws.push({b:[8,10],f:t=>drawScreen(dTap.ctx,'hyprlock',TN,sessions(t),t,{flash:{id:1,t:TAP},toast:{where:'Ghostty · tab 1',name:'cyberviber',t:TAP+.1}})});
+
+/* B6 pipeline packet + terminal names */
+const NAMES=['Ghostty','kitty','Tabby','foot','zellij','herdr','alacritty','Hyprland','macOS','Omarchy'];
+draws.push({b:[10,12],f:t=>{
+  const boxes=[...document.querySelectorAll('#pipe .box')],pr=$('pipe').getBoundingClientRect();
+  const a=bar(10.75),z=bar(11.5),k=Math.max(0,Math.min(1,(t-a)/(z-a))),pos=k*4,e=pos;
+  const pk=$('pkt');pk.style.opacity=t<a?0:1;
+  const bw=(pr.width)/5;pk.style.left=(e*bw+ (bw-40)/2 -8)+'px';
+  boxes.forEach((b,i)=>{const hot=t>=a&&pos>=i-.15;b.style.borderColor=hot?'var(--accent)':'rgba(236,235,230,.25)';b.style.boxShadow=hot?'0 0 0 1px var(--accent),0 0 50px -10px var(--accent)':'none'});
+  const n=t<z?'':NAMES[Math.min(NAMES.length-1,Math.floor((t-z)/(BAR/8)))];$('termname').textContent=n;
+}});
+
+/* B7 gallery */
+const LAY=[['A','waybar'],['B','tiling'],['C','btop'],['D','walker'],['E','hyprlock']];
+const galCtx=LAY.map(([tag,id],i)=>{const d=document.createElement('div');d.className='lay';d.dataset.a='up';d.dataset.b=String(12.5+i*.17);
+  d.innerHTML=`<div class="bez"><canvas width="600" height="800"></canvas></div><h3><span>${tag}</span>${id}</h3>`;$('gal').appendChild(d);
+  return d.querySelector('canvas').getContext('2d')});
+draws.push({b:[12,14],f:t=>{const L=sessions(t);LAY.forEach(([,id],i)=>drawScreen(galCtx[i],id,TN,L,t))}});
+
+/* B8 themes */
+$('themes').innerHTML=TK.map(k=>{const v=THEMES[k];return `<div class="th"><div class="sw"><i style="background:${v.bg}"></i><i style="background:${v.accent}"></i><i style="background:${v.red}"></i><i style="background:${v.yellow}"></i><i style="background:${v.green}"></i></div><span>${v.name}</span></div>`}).join('')+'<div class="th" style="color:var(--dim);display:flex;align-items:flex-end">cyberviber theme nord</div>';
+const thEls=[...$('themes').children];
+const dTheme=device($('d-theme'),520);dTheme.el.style.transform='rotateY(16deg) rotateX(4deg)';
+draws.push({b:[14,16],f:t=>{
+  const i=Math.max(0,Math.min(TK.length-1,Math.floor((t-bar(14.5))/(1.5*BAR/TK.length)))),T=t<bar(14.5)?TN:THEMES[TK[i]];
+  drawScreen(dTheme.ctx,'tiling',T,sessions(t),t);
+  $('b-themes').style.setProperty('--accent',T.accent);
+  thEls.forEach((el,j)=>{const on=t>=bar(14.5)&&j===i;el.style.boxShadow=on?`inset 0 0 0 2px ${T.accent}`:'none';el.style.color=on?T.accent:''});
+}});
+
+/* B9 end device */
+const dEnd=device($('d-end'),470);ani(dEnd.wrap,'devIn',16.5,1.1);
+draws.push({b:[16,99],f:t=>{dEnd.el.style.transform=`rotateY(${-26+8*Math.min(1,(t-bar(16))/(4*BAR))}deg) rotateX(6deg)`;drawScreen(dEnd.ctx,'waybar',TN,sessions(t),t)}});
+
+/* declarative entrances */
+document.querySelectorAll('[data-a]').forEach(el=>{const d=+(el.dataset.d||(el.dataset.a==='land'?.7:.6));ani(el,el.dataset.a,+el.dataset.b+(+el.dataset.o||0),d)});
+dTitle.wrap.style.opacity='';
+
+const beats=[...document.querySelectorAll('.beat')];
+const spins=[...document.querySelectorAll('.spin')];
+const exits=[...document.querySelectorAll('[data-x]')];
+const clamp=x=>Math.max(0,Math.min(1,x));
+function tick(ms){
+  const t=ms/1000;
+  beats.forEach(b=>{const s=bar(+b.dataset.s),e=bar(+b.dataset.e);
+    const o=s<=0?(t<e-.14?1:clamp((e-t)/.14)):clamp((t-(s-.14))/.14)*(t<e-.14?1:clamp((e-t)/.14));
+    b.style.opacity=o;b.style.visibility=o>0?'visible':'hidden';
+    if(o>0&&t>=s-.14&&t<e)$('lab').textContent=b.dataset.l});
+  exits.forEach(x=>x.style.opacity=clamp((bar(+x.dataset.x)-.02-t)/.14));
+  draws.forEach(d=>{if(t>=bar(d.b[0])-.2&&t<bar(d.b[1]))d.f(t)});
+  const g=SPIN[Math.floor(t/.12)%SPIN.length];spins.forEach(s=>s.textContent=g);
+  chipEls.forEach((c,i)=>{const red=i===0&&t>=bar(1)-.05;const gl=c.firstChild;
+    gl.textContent=red?'!':SPIN[(Math.floor(t/.12)+i*3)%SPIN.length];gl.style.color=red?'var(--red)':'var(--yellow)';
+    c.style.borderColor=red?'var(--red)':'rgba(236,235,230,.22)';c.style.boxShadow=red?'0 0 50px -8px var(--red)':'none';
+    c.style.filter=t>=bar(1)-.05&&!red?'brightness(.35)':'';c.style.color=red?'var(--paper)':''});
+  const s=Math.min(t,DUR);$('tc').textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+  $('prog').style.width=(100*Math.min(1,t/DUR))+'%';
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
