@@ -3,7 +3,6 @@ package focus
 import (
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/d135-1r43/cyberviber/internal/mux"
@@ -85,6 +84,9 @@ func (f *Focuser) Focus(id string) Result {
 	res.Terminal = term.App
 
 	app, ok := apps[term.App]
+	if !ok && f.goos() == "linux" {
+		app, ok = hyprWindow{}, true
+	}
 	if !ok {
 		f.activate(term)
 		res.Reason = "unknown-terminal"
@@ -109,11 +111,5 @@ func (f *Focuser) activate(t Terminal) {
 		f.Run("open", "-a", t.Bundle)
 		return
 	}
-	pid := strconv.Itoa(t.AppPID)
-	out, err := f.Run("hyprctl", "-i", "0", "dispatch", `hl.dsp.focus({ window = "pid:`+pid+`" })`)
-	if err == nil && strings.TrimSpace(string(out)) == "ok" {
-		return
-	}
-	// Hyprland before 0.57 only knows the classic dispatcher syntax
-	f.Run("hyprctl", "-i", "0", "dispatch", "focuswindow", "pid:"+pid)
+	f.hyprFocus("pid:" + strconv.Itoa(t.AppPID))
 }

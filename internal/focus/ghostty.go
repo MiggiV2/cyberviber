@@ -114,7 +114,10 @@ func randomHex(n int) string {
 type ghostty struct{}
 
 func (ghostty) Focus(f *Focuser, s session.Session, t Terminal, inMux bool) (int, string) {
-	if f.goos() == "darwin" && f.focusGhostty(s.ID, s.Cwd, t.TTY, inMux) {
+	if f.goos() != "darwin" {
+		return hyprWindow{}.Focus(f, s, t, inMux)
+	}
+	if f.focusGhostty(s.ID, s.Cwd, t.TTY, inMux) {
 		return 0, ""
 	}
 	f.activate(t)

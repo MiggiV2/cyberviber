@@ -510,3 +510,75 @@ func TestShouldFallBackToLegacyDispatcherOnHyprlandBefore057(t *testing.T) {
 		t.Fatalf("%v", r.calls)
 	}
 }
+
+func TestShouldFocusZellijThenFootWindowOnHyprland(t *testing.T) {
+	// given claude(100) in zellij pane 0; zellij client 90 runs in a standalone foot (70), Omarchy's default
+	get := table(
+		proc.Proc{PID: 100, PPID: 98, Name: "claude"},
+		proc.Proc{PID: 98, PPID: 1, Name: "zellij"},
+		proc.Proc{PID: 90, PPID: 80, Name: "zellij", TTY: "pts/1", Exe: "/usr/bin/zellij"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "foot", Exe: "/usr/bin/foot"},
+	)
+	r := &recorder{answers: map[string]string{
+		"ss -xpH":      `u_str ESTAB 0 0 * 5 * 6 users:(("zellij",pid=90,fd=5))` + "\n" + `u_str ESTAB 0 0 /run/user/1000/zellij/contract_version_1/judicious-accordion 6 * 5 users:(("zellij",pid=98,fd=9))`,
+		"-j clients":   `[{"address":"0xaa","pid":13028,"title":"chrome"},{"address":"0xbb","pid":70,"title":"zellij"}]`,
+		"hl.dsp.focus": "ok",
+	}}
+	f := newFocuser(session.Session{ID: "s1", PID: 100}, get,
+		map[string]string{"ZELLIJ_SESSION_NAME": "judicious-accordion", "ZELLIJ_PANE_ID": "0"}, r, shortTempDir(t))
+	f.GOOS = "linux"
+
+	// when
+	res := f.Focus("s1")
+
+	// then
+	joined := strings.Join(r.calls, "\n")
+	if !res.OK || res.Terminal != "foot" || res.Mux != "zellij" {
+		t.Fatalf("%+v %v", res, r.calls)
+	}
+	if !strings.Contains(joined, "/usr/bin/zellij --session judicious-accordion action focus-pane-id terminal_0") ||
+		!strings.Contains(joined, `hyprctl -i 0 dispatch hl.dsp.focus({ window = "address:0xbb" })`) {
+		t.Fatalf("pane or window not focused: %v", r.calls)
+	}
+}
+
+func TestShouldTellFootServerWindowsApartByTitleMarker(t *testing.T) {
+	// given a foot server (70) with two windows; the session runs on pts/4
+	get := table(
+		proc.Proc{PID: 100, PPID: 80, Name: "claude", TTY: "pts/4"},
+		proc.Proc{PID: 80, PPID: 70, Name: "zsh"},
+		proc.Proc{PID: 70, PPID: 1, Name: "foot", Exe: "/usr/bin/foot"},
+	)
+	marker := ""
+	old := writeTitle
+	writeTitle = func(tty, title string) error {
+		if tty != "pts/4" {
+			t.Errorf("title written to %s", tty)
+		}
+		marker = title
+		return nil
+	}
+	t.Cleanup(func() { writeTitle = old })
+	var calls []string
+	f := &Focuser{
+		Lookup: func(id string) (session.Session, bool) { return session.Session{ID: "s1", PID: 100}, true },
+		Get:    get, Env: func(int) map[string]string { return nil }, GOOS: "linux",
+		Run: func(name string, args ...string) ([]byte, error) {
+			call := name + " " + strings.Join(args, " ")
+			calls = append(calls, call)
+			if strings.Contains(call, "-j clients") {
+				return []byte(`[{"address":"0x1","pid":70,"title":"other"},{"address":"0x2","pid":70,"title":"` + marker + `"}]`), nil
+			}
+			return []byte("ok"), nil
+		},
+	}
+
+	// when
+	res := f.Focus("s1")
+
+	// then
+	if !res.OK || marker == "" || calls[len(calls)-1] != `hyprctl -i 0 dispatch hl.dsp.focus({ window = "address:0x2" })` {
+		t.Fatalf("%+v %v", res, calls)
+	}
+}

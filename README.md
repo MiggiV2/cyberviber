@@ -34,7 +34,7 @@ herdr and zellij need no setup: the daemon reads the pane from the session's env
 
 ## Install (Linux, Hyprland)
 
-Target setup: Arch, Hyprland, kitty, herdr (unit-tested and run in a Linux container, not yet on a real desktop). Needs `ss` (iproute2) and `hyprctl`.
+Tested on Omarchy (Arch, Hyprland, foot, zellij); kitty and herdr are unit-tested. Needs `ss` (iproute2) and `hyprctl`.
 
 ```sh
 go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest   # or a linux release binary
@@ -42,7 +42,7 @@ go install github.com/d135-1r43/cyberviber/cmd/cyberviber@latest   # or a linux 
 sudo usermod -aG uucp "$USER"   # access to /dev/ttyUSB0 (Arch; Debian/Ubuntu: dialout), log in again
 ```
 
-`cyberviber install` does the same as on macOS, but runs the daemon as the systemd user service `cyberviber.service` (logs: `journalctl --user -u cyberviber`). For kitty, add the two remote-control lines above (`listen_on unix:@kitty` also works on Linux). The terminal is raised with `hyprctl dispatch hl.dsp.focus({ window = "pid:<terminal>" })` (Hyprland 0.57+; older versions get `focuswindow pid:<terminal>`), which also switches to its workspace; other compositors only get the pane and tab focused, not the window.
+`cyberviber install` does the same as on macOS, but runs the daemon as the systemd user service `cyberviber.service` (logs: `journalctl --user -u cyberviber`). For kitty, add the two remote-control lines above (`listen_on unix:@kitty` also works on Linux). The terminal is raised with `hyprctl dispatch hl.dsp.focus({ window = "pid:<terminal>" })` (Hyprland 0.57+; older versions get `focuswindow pid:<terminal>`), which also switches to its workspace; other compositors only get the pane and tab focused, not the window. Terminals without a remote control of their own (foot, alacritty, Ghostty on Linux, …) are focused by their Hyprland window; when several windows share one process (`foot --server`, Ghostty), cyberviber briefly sets a unique title on the session's TTY to find the right one.
 
 
 ```sh
