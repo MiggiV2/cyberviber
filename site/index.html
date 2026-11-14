@@ -177,6 +177,10 @@ h2 em{color:var(--accent)}
 
 .prs{margin-top:40px;color:var(--dim);font-size:13px;max-width:620px}
 .prs a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.also{margin-top:18px;font-size:12px;color:var(--dim)}
+.also a,.note a{color:inherit;text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--paper) 25%,transparent)}
+.note{margin-top:28px;max-width:720px;font-size:12.5px;color:var(--dim)}
+.note b{color:var(--paper);font-weight:500}
 footer{padding:60px var(--pad) 40px;border-top:1px solid color-mix(in srgb,var(--paper) 14%,transparent);display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;font-size:12px;color:var(--dim)}
 footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--paper) 25%,transparent)}
 
@@ -203,6 +207,7 @@ footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--pa
       <a class="btn pri" href="#build">Build one ⟶</a>
       <a class="btn" href="https://github.com/d135-1r43/cyberviber">github.com/d135-1r43/cyberviber</a>
     </div>
+    <p class="also">Also shows <a href="https://github.com/mistralai/mistral-vibe">Mistral Vibe</a> sessions.</p>
   </div>
   <div class="stage" id="stage">
     <canvas id="gl" aria-label="3D model of the cyberviber display, drag to rotate, tap the screen"></canvas>
@@ -223,6 +228,7 @@ footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--pa
     <div class="st"><b class="g c-working spin">✻</b><h3 class="c-working">working</h3><p>Thinking or running tools. The activity line shows the current step.</p><div class="src">UserPromptSubmit · PreToolUse</div></div>
     <div class="st"><b class="g c-idle">◦</b><h3 class="c-idle">idle</h3><p>Ready, but no events for ten minutes (configurable).</p><div class="src">ready + 10 min</div></div>
   </div>
+  <p class="note rv"><b>Mistral Vibe</b> sessions appear in the same list. Vibe has fewer hooks than Claude Code: a session shows up with its first tool call or finished turn, a question shows as needs you, but a permission prompt does not (it stays working), and there is no context usage.</p>
 </section>
 
 <section id="jump">
@@ -256,7 +262,7 @@ footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--pa
   <div class="compat rv">
     <span>Ghostty</span><span>kitty</span><span>Tabby<sup>plugin</sup></span><span>foot</span><span>zellij</span><span>herdr</span><span>alacritty</span><span>Hyprland<sup>0.57+</sup></span><span>macOS</span><span>Omarchy</span>
   </div>
-  <p class="prs rv">Missing your terminal, multiplexer or OS? <a href="https://github.com/d135-1r43/cyberviber/pulls">Pull requests</a> are welcome. Multiplexers and terminal apps are pluggable in the daemon.</p>
+  <p class="prs rv">Missing your terminal, multiplexer, OS or coding agent? <a href="https://github.com/d135-1r43/cyberviber/pulls">Pull requests</a> are welcome. Multiplexers and terminal apps are pluggable in the daemon.</p>
 </section>
 
 <section id="build">
@@ -279,6 +285,7 @@ footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--pa
 <span class="o">  ✓ hooks       ~/.claude/settings.json</span>
 <span class="o">  ✓ statusline  cyberviber statusline</span>
 <span class="o">  ✓ daemon      dev.cyberviber.daemon</span>
+<span class="o">  ✓ vibe hooks  ~/.vibe/hooks.toml</span> <span class="c">(only if ~/.vibe exists)</span>
 
 <span class="c"># firmware</span><button class="cp" data-copy="cyberviber release 120 &amp;&amp; pio run -d firmware -t upload &amp;&amp; cyberviber release 1">copy</button>
 <span class="p">❯ </span>cyberviber release 120
