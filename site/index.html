@@ -6,9 +6,7 @@
 <title>cyberviber — every Claude, at a glance</title>
 <meta name="description" content="A 2.4″ ESP32 touch display that lists running Claude Code sessions with their state and focuses a session's terminal when you tap it.">
 <meta name="theme-color" content="#0b0b10">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
 :root{
   --bg:#1a1b26;--bg2:#16161e;--surface:#24283b;--border:#3b4261;--fg:#c0caf5;--muted:#565f89;
@@ -309,11 +307,11 @@ footer a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--pa
 </section>
 
 <footer>
-  <span>cyberviber · MIT license</span>
+  <span>cyberviber · MIT license · <a href="impressum.html">Impressum &amp; Datenschutz</a></span>
   <span><a href="https://github.com/d135-1r43/cyberviber">source</a> · <a href="https://github.com/d135-1r43/cyberviber/releases">releases</a> · <a href="https://makerworld.com/en/models/1654522-bongo-cat-mini-monitor-animated-esp32-display#profileId-1749680">case on makerworld</a></span>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
 /* ================= data ================= */
 const THEMES = {
