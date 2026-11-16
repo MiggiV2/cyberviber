@@ -184,7 +184,6 @@ func (l *Link) Run(ctx context.Context) {
 			l.setStatus(Status{Connected: true, Port: path, Firmware: hello.FW, Layout: hello.Layout, Theme: hello.Theme,
 				Brightness: hello.Bright, DimAfter: hello.Dim, USB: hello.USB})
 			rel, err := l.serve(ctx, c, l.auto() && path != l.hub())
-			c.close()
 			l.setStatus(Status{})
 			switch {
 			case rel > 0:
@@ -193,6 +192,7 @@ func (l *Link) Run(ctx context.Context) {
 			case ctx.Err() == nil:
 				l.Logf("serial: %s disconnected: %v", path, err)
 			}
+			c.close()
 			break
 		}
 		if time.Until(pausedUntil) <= 0 && !l.sleep(ctx, rescan, &pausedUntil) {
