@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -54,7 +55,9 @@ type Link struct {
 	Baud     int           // 115200
 	Snapshot func() []byte // current sessions message (one JSON object)
 	Focus    func(id string) (ok bool, reason string)
-	Version  string // daemon version, sent in hello
+	Version  string        // daemon version, sent in hello
+	Hub      string        // socket of cyd's hub; used instead of the serial port while it exists
+	HubPoll  time.Duration // how often a direct serial connection checks whether the hub came up
 
 	// Open and List are replaceable for tests.
 	Open func(path string, baud int) (Port, error)
@@ -83,10 +86,13 @@ func (l *Link) init() {
 		l.Open = openPort
 	}
 	if l.List == nil {
-		l.List = func() []string { return listPorts(l.Path) }
+		l.List = func() []string { return listPorts(l.Path, l.hub()) }
 	}
 	if l.Logf == nil {
 		l.Logf = log.Printf
+	}
+	if l.HubPoll == 0 {
+		l.HubPoll = rescan
 	}
 	if l.Baud == 0 {
 		l.Baud = 115200
@@ -108,8 +114,22 @@ func (l *Link) Notify() {
 	}
 }
 
-// Release closes the port and keeps it closed for d, so a flasher can use it.
+func (l *Link) auto() bool { return l.Path == "" || l.Path == "auto" }
+
+func (l *Link) hub() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.Hub
+}
+
+// Release closes the port and keeps it closed for d, so a flasher can use it. With the hub
+// running, the hub holds the port, so it is asked to let go too.
 func (l *Link) Release(d time.Duration) {
+	if sock := l.hub(); isSocket(sock) {
+		if err := hubRelease(sock, d); err != nil {
+			l.Logf("serial: hub release: %v", err)
+		}
+	}
 	select {
 	case <-l.release:
 	default:
@@ -163,7 +183,7 @@ func (l *Link) Run(ctx context.Context) {
 			l.Logf("serial: device on %s (fw %s)", path, hello.FW)
 			l.setStatus(Status{Connected: true, Port: path, Firmware: hello.FW, Layout: hello.Layout, Theme: hello.Theme,
 				Brightness: hello.Bright, DimAfter: hello.Dim, USB: hello.USB})
-			rel, err := l.serve(ctx, c)
+			rel, err := l.serve(ctx, c, l.auto() && path != l.hub())
 			c.close()
 			l.setStatus(Status{})
 			switch {
@@ -335,7 +355,7 @@ func foreign(h hello) bool { return h.Device != "" && h.Device != "cyberviber" }
 
 // serve pushes session lists and handles device messages. It returns a positive duration
 // when the port was released, otherwise the error that ended the connection.
-func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
+func (l *Link) serve(ctx context.Context, c *conn, direct bool) (time.Duration, error) {
 	for len(l.out) > 0 { // drop messages meant for an earlier connection
 		<-l.out
 	}
@@ -344,6 +364,8 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 	}
 	tick := time.NewTicker(keepalive)
 	defer tick.Stop()
+	hubCheck := time.NewTicker(l.HubPoll)
+	defer hubCheck.Stop()
 	werr := make(chan error, 1)
 	send := func(b []byte) {
 		if err := c.write(b); err != nil {
@@ -371,6 +393,10 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 			}
 			send(l.Snapshot())
 			tick.Reset(keepalive)
+		case <-hubCheck.C:
+			if direct && isSocket(l.hub()) {
+				return 0, errors.New("cyd hub came up, switching to its socket")
+			}
 		case <-tick.C:
 			if !l.shotBusy() {
 				send(l.Snapshot())
@@ -415,9 +441,12 @@ func (l *Link) serve(ctx context.Context, c *conn) (time.Duration, error) {
 	}
 }
 
-func listPorts(path string) []string {
+func listPorts(path, hub string) []string {
 	if path != "" && path != "auto" {
 		return []string{path}
+	}
+	if isSocket(hub) {
+		return []string{hub}
 	}
 	var out []string
 	for _, p := range Patterns {
@@ -431,6 +460,9 @@ func listPorts(path string) []string {
 // openPort opens the port with DTR and RTS inactive, so the ESP32 auto-reset circuit
 // (EN and IO0 driven from RTS/DTR) does not reset the board or put it into the bootloader.
 func openPort(path string, baud int) (Port, error) {
+	if isSocket(path) {
+		return net.Dial("unix", path)
+	}
 	p, err := bugst.Open(path, &bugst.Mode{
 		BaudRate:          baud,
 		DataBits:          8,

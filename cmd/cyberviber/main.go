@@ -151,6 +151,7 @@ func runDaemon(cfg config.Config) error {
 		return err
 	}
 	link := serial.New(cfg.Serial, cfg.Baud)
+	link.Hub = serial.HubSocket(os.Getenv)
 	link.Version = version
 	api := server.New(store, func() { save(); link.Notify() })
 	notify := func() { api.Notify(); link.Notify() }
